@@ -2,6 +2,9 @@ import os.path
 import random
 from typing import Tuple, List, Dict
 
+import numpy as np
+from sklearn import preprocessing
+from PIL import Image
 import matplotlib.pyplot as plt
 import torch
 from torch import nn
@@ -64,9 +67,27 @@ def slice_net(net: nn.Sequential, after_which: int) -> nn.Sequential:
     return nn.Sequential(*subnet)
 
 
+def save_feature_maps(features: np.ndarray, path_to_folder: str, order_by_brightness: bool = True):
+    # Expecting features to be in shape (C, H, W)
+
+    brightness_list = []
+    for id, single_map in enumerate(features):
+        brightness_list.append((id, np.mean(single_map)))
+
+    if order_by_brightness:
+        brightness_list.sort(key=lambda x: x[1], reverse=True)
+
+    file_name = "feature_map_layer_2_sorted_"
+    number_of_zeroes = int(np.ceil(len(features)**.1))
+    for num, (id, _) in enumerate(brightness_list):
+        new_path = path_to_folder + file_name + f"{num}".zfill(number_of_zeroes) + ".jpg"
+        image = Image.fromarray((preprocessing.normalize(features[id]) * 255).astype(np.uint8), mode='L')
+        image.save(new_path)
+
+
 if __name__ == '__main__':
     # Initialization
-    img = read_image("imgs/lamp.jpg")
+    img = read_image("imgs/rooster.jpg")
     weights = MNASNet0_75_Weights.DEFAULT
     trained_model = mnasnet0_75(weights=weights)
     trained_model.train(False)
@@ -74,11 +95,11 @@ if __name__ == '__main__':
 
     # Preprocessing the image
     transformator = weights.transforms(antialias=True)
-    image = transformator(img)
-    batch = image.unsqueeze(0)  # (B, C, H, W)
+    img = transformator(img)
+    batch = img.unsqueeze(0)  # (B, C, H, W)
 
     # Slicing model and extracting last layer
-    which_layer = 50
+    which_layer = 24
     last_layer = get_layer(model, which_layer)
     model = slice_net(model, which_layer)
 
@@ -102,8 +123,10 @@ if __name__ == '__main__':
     except AttributeError:
         print("Given layer does not have weights")
 
-    # Visualizing feature map
+    # Visualizing feature map and saving to folder
+    folder_path = "./feature_maps/"
     outcome = model(batch).detach().numpy()
+    # save_feature_maps(outcome[0], folder_path)
     squares_along_axis = 5
     try:
         maps_ids = random.sample(range(outcome.shape[1]), squares_along_axis**2)
