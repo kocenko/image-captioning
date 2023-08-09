@@ -154,10 +154,13 @@ class FeatureExtractor:
 
             maps = features[0, maps_ids, :, :]
             fig, axs = plt.subplots(plot_shape[0], plot_shape[1])
+            im = None
             for row in range(plot_shape[0]):
                 for column in range(plot_shape[1]):
-                    axs[row, column].imshow(maps[row * plot_shape[0] + column], cmap="cividis")
+                    im = axs[row, column].imshow(maps[row * plot_shape[0] + column], cmap="cividis")
                     axs[row, column].axis('off')
+            colour_bar = plt.colorbar(im, ax=axs.ravel().tolist())
+            colour_bar.outline.set_visible(False)
             plt.show()
 
         except Exception as e:
@@ -184,13 +187,16 @@ class FeatureExtractor:
                 filters = filters[filters_ids, :, :, :]
 
                 fig, axs = plt.subplots(how_many, c_in)
+                im = None
                 for row in range(how_many):
                     for column in range(c_in):
                         if row == 0:
                             axs[row, column].set_title(f"Channel {column+1}")
 
-                        axs[row, column].imshow(filters[row][column], cmap="cividis")
+                        im = axs[row, column].imshow(filters[row][column], cmap="cividis")
                         axs[row, column].axis('off')
+                colour_bar = plt.colorbar(im, ax=axs.ravel().tolist())
+                colour_bar.outline.set_visible(False)
                 plt.show()
 
         except Exception as e:
@@ -203,9 +209,9 @@ if __name__ == '__main__':
     folder_path = "./feature_maps/"
 
     fe = FeatureExtractor()
-    fe.slice_net(0)
+    fe.slice_net(50)
     image = fe.get_image_from_file(image_path)
     output = fe.feed(image)
-    fe.export_onnx(model_export_name, image_path)
-    # fe.plot_feature_maps(output, plot_shape=(2, 2))
-    fe.plot_filters(0, 5)
+    # fe.export_onnx(model_export_name, image_path)
+    fe.plot_feature_maps(output, plot_shape=(2, 2))
+    fe.plot_filters(20, 4)
