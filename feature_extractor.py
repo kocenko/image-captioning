@@ -88,12 +88,12 @@ class FeatureExtractor:
     def feed(self, batch):
         if self.model is None:
             raise AttributeError("Cannot feed model if model is None")
-        return self.model(batch).detach().numpy()
+        return self.model(batch)
 
     def save_feature_maps(self, path_to_image: str, path_to_folder: str, order_by_mean: bool = True):
         try:
             img = self.get_image_from_file(path_to_image)
-            features = self.feed(img)[0]  # Only first batch
+            features = self.feed(img).detach().numpy()[0]  # Only first batch
 
             file_name = f"feature_map_layer_{self.available_layer_index-1}"
             number_of_zeroes = int(np.ceil(len(features) ** .1))  # For the file name
@@ -103,7 +103,6 @@ class FeatureExtractor:
                 mean_list = [(map_list[index], np.mean(single_map)) for index, single_map in enumerate(features)]
                 mean_list.sort(key=lambda x: x[1], reverse=True)
                 map_list = [i[0] for i in mean_list]
-                # print([i[1] for i in mean_list])
                 file_name += "_sorted_"
 
             for idx in map_list:
@@ -130,6 +129,7 @@ class FeatureExtractor:
     @staticmethod
     def plot_feature_maps(features: torch.Tensor, plot_shape: Tuple = (5, 5), seed: int = None):
         try:
+            features = features.detach().numpy()
             number_of_maps = features.shape[1]
             if number_of_maps == 0:
                 raise ValueError("Tensor's 2nd dimension has 0 maps")
@@ -204,14 +204,14 @@ class FeatureExtractor:
 
 
 if __name__ == '__main__':
-    image_path = "./exercise/imgs/rooster.jpg"
+    image_path = "imgs/surfing.jpg"
     model_export_name = './onnx_models/mnasnet0_75'
     folder_path = "./feature_maps/"
 
     fe = FeatureExtractor()
-    fe.slice_net(50)
+    fe.slice_net(0)
     image = fe.get_image_from_file(image_path)
     output = fe.feed(image)
     # fe.export_onnx(model_export_name, image_path)
-    fe.plot_feature_maps(output, plot_shape=(2, 2))
-    fe.plot_filters(20, 4)
+    fe.plot_feature_maps(output, plot_shape=(5, 5))
+    # fe.plot_filters(20, 4)
