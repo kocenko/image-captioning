@@ -1,10 +1,9 @@
-import torch
-
 from tokenizer import Tokenizer
 from feature_extractor import FeatureExtractor
 
+import torch
 from torch import Tensor
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 
 class ImageCaptionDataset(Dataset):
@@ -16,18 +15,12 @@ class ImageCaptionDataset(Dataset):
     def __len__(self) -> int:
         return len(self.tokenizer.captions)
 
-    def __getitem__(self, item):
-        # Expected data: ((image, input_tokens), label_tokens)
-        if item >= len(self.tokenizer.captions) or item < 0:
-            raise IndexError("Index out of range")
-
+    def __getitem__(self, item: int):
         caption = self.tokenizer.encode(self.tokenizer.captions[item])
         input_caption = caption[..., :-1]
         label_caption = caption[..., 1:]
         raw_image = self.extractor.get_image_from_file(self.tokenizer.image_paths[item])
-        transformed_image = self.extractor.feed(raw_image)
-
-        return (transformed_image, input_caption), label_caption
+        return raw_image, input_caption, label_caption
 
 
 if __name__ == "__main__":
@@ -41,4 +34,5 @@ if __name__ == "__main__":
     fe.slice_net(97)
     tk = Tokenizer(raw_file, folder, device="cpu")
     ds = ImageCaptionDataset(tk, fe, device="cpu")
-    print(ds[20000][0][0].shape)
+    dl = DataLoader(ds, batch_size=50, shuffle=True)
+    print(next(iter(dl))[0].shape)
