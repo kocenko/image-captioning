@@ -13,15 +13,17 @@ import onnx
 
 
 class FeatureExtractor:
-    def __init__(self, model_name: str = "mnasnet0_75"):
+    def __init__(self, model_name: str = "mnasnet0_75", device: str = "cuda"):
         self.model = None
         self.mapping: Dict[int, List[int]] = {}
         self.available_layer_index: int = 0
         self.image_transform = None
+        self.device: str = device
 
         if model_name == "mnasnet0_75":
             weights = MNASNet0_75_Weights.DEFAULT
             self.model: MNASNet = mnasnet0_75(weights=weights)
+            self.model.to(self.device)
             self.model.train(False)
             self.model = self.model.layers
             self.image_transform: Any = weights.transforms(antialias=True)
@@ -85,7 +87,7 @@ class FeatureExtractor:
         batch = img.unsqueeze(0)  # (B, C, H, W)
         return batch
 
-    def feed(self, batch):
+    def feed(self, batch) -> torch.Tensor:
         if self.model is None:
             raise AttributeError("Cannot feed model if model is None")
         return self.model(batch)

@@ -1,3 +1,4 @@
+import os
 import string
 from collections import Counter
 
@@ -10,12 +11,22 @@ class Tokenizer:
     END_TOKEN = '<end>'
     UNKNOWN_TOKEN = '<unknown>'
 
-    def __init__(self, raw_text: str, standardize: bool = True, reduce_vocabulary: bool = True):
+    def __init__(
+            self, raw_text: str,
+            images_folder: str,
+            standardize: bool = True,
+            reduce_vocabulary: bool = True,
+            device: str = "cuda"
+    ) -> None:
+
         self.raw_text: str = raw_text
+        self.image_paths: list[str] = []
         self.captions: list[str] = []
         self.word_set: set = set()
         self.word_frequency: Counter = Counter()
         self.max_length: int = 0
+        self.device: str = device
+        self.images_folder: str = images_folder
 
         start_token = Tokenizer.START_TOKEN
         end_token = Tokenizer.END_TOKEN
@@ -39,7 +50,7 @@ class Tokenizer:
 
     def __pad_tensor(self, token_list: list[int]) -> torch.Tensor:
         token_list = token_list + (self.max_length - len(token_list)) * [self.encode_map[Tokenizer.EMPTY_TOKEN]]
-        return torch.tensor(token_list)
+        return torch.tensor(token_list, device=self.device)
 
     def __extract_captions(self, standardize: bool = True, reduce_vocabulary: bool = True):
         if len(self.captions) > 0:
@@ -50,6 +61,7 @@ class Tokenizer:
             if len(raw_caption) < 2:
                 raise ValueError("Improper line format")
 
+            self.image_paths.append(os.path.join(self.images_folder, raw_caption[0].split('#')[0]))
             caption = raw_caption[1]
             if standardize:
                 caption = self.__standardize(caption)
@@ -89,10 +101,11 @@ class Tokenizer:
 
 if __name__ == '__main__':
     file_path = 'dataset/captions.txt'
+    folder = 'dataset/images/'
 
     with open(file_path, "r") as f:
         raw_file = f.read()
 
-    tokenizer = Tokenizer(raw_file)
+    tokenizer = Tokenizer(raw_file, folder)
     print(tokenizer.encode('I am going to work'))
     # print(tokenizer.decode([0, 10, 20, 4, 28, 1]))
