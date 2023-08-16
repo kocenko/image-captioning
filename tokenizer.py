@@ -1,8 +1,11 @@
 import string
 from collections import Counter
 
+import torch
+
 
 class Tokenizer:
+    EMPTY_TOKEN = ''
     START_TOKEN = '<start>'
     END_TOKEN = '<end>'
     UNKNOWN_TOKEN = '<unknown>'
@@ -12,8 +15,15 @@ class Tokenizer:
         self.captions: list[str] = []
         self.word_set: set = set()
         self.word_frequency: Counter = Counter()
-        self.encode_map = {Tokenizer.START_TOKEN: 0, Tokenizer.END_TOKEN: 1, Tokenizer.UNKNOWN_TOKEN: 2}
-        self.decode_map = {0: Tokenizer.START_TOKEN, 1: Tokenizer.END_TOKEN, 2: Tokenizer.UNKNOWN_TOKEN}
+        self.max_length: int = 0
+
+        start_token = Tokenizer.START_TOKEN
+        end_token = Tokenizer.END_TOKEN
+        unknown_token = Tokenizer.UNKNOWN_TOKEN
+        empty_token = Tokenizer.EMPTY_TOKEN
+
+        self.encode_map = {start_token: 0, end_token: 1, unknown_token: 2, empty_token: 3}
+        self.decode_map = {0: start_token, 1: end_token, 2: unknown_token, 3: empty_token}
         self.__extract_captions(standardize, reduce_vocabulary)
 
         if reduce_vocabulary:
@@ -27,23 +37,31 @@ class Tokenizer:
         line.translate(str.maketrans('', '', string.punctuation))  # Removing punctuation
         return line
 
+    def __pad_tensor(self, token_list: list[int]) -> torch.Tensor:
+        token_list = token_list + (self.max_length - len(token_list)) * [self.encode_map[Tokenizer.EMPTY_TOKEN]]
+        return torch.tensor(token_list)
+
     def __extract_captions(self, standardize: bool = True, reduce_vocabulary: bool = True):
         if len(self.captions) > 0:
             raise AttributeError("Captions have been already extracted from the raw text.")
 
         for line in self.raw_text.splitlines():
             raw_caption = line.split('\t', 1)
-
             if len(raw_caption) < 2:
                 raise ValueError("Improper line format")
 
             caption = raw_caption[1]
-
             if standardize:
                 caption = self.__standardize(caption)
 
-            self.word_frequency.update(set(caption.split()))
-            self.word_set = self.word_set | set(caption.split())
+            if len(caption) > self.max_length:
+                self.max_length = len(caption)
+
+            captions_set = set(caption.split())
+            if reduce_vocabulary:
+                self.word_frequency.update(captions_set)
+
+            self.word_set = self.word_set | captions_set
             self.captions.append(caption)
 
     def __reduce_vocabulary(self):
@@ -53,7 +71,7 @@ class Tokenizer:
         self.encode_map = self.encode_map | {token: i + len(self.encode_map) for i, token in enumerate(self.word_set)}
         self.decode_map = self.decode_map | {i + len(self.decode_map): token for i, token in enumerate(self.word_set)}
 
-    def encode(self, line_to_encode: str) -> list:
+    def encode(self, line_to_encode: str) -> torch.Tensor:
         output_list = []
         word_list = [Tokenizer.START_TOKEN] + self.__standardize(line_to_encode).split() + [Tokenizer.END_TOKEN]
 
@@ -63,7 +81,7 @@ class Tokenizer:
             else:
                 output_list.append(self.encode_map[Tokenizer.UNKNOWN_TOKEN])
 
-        return output_list
+        return self.__pad_tensor(output_list)
 
     def decode(self, list_to_decode: list) -> str:
         return ' '.join([self.decode_map[token] for token in list_to_decode])
@@ -76,5 +94,5 @@ if __name__ == '__main__':
         raw_file = f.read()
 
     tokenizer = Tokenizer(raw_file)
-    # print(tokenizer.encode('I am going to work'))
+    print(tokenizer.encode('I am going to work'))
     # print(tokenizer.decode([0, 10, 20, 4, 28, 1]))
