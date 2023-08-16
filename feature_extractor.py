@@ -3,7 +3,6 @@ import random
 from typing import Tuple, List, Dict, Any, Union
 
 import numpy as np
-from PIL import Image
 import matplotlib.pyplot as plt
 import torch
 from torch import nn
@@ -83,9 +82,8 @@ class FeatureExtractor:
 
     def get_image_from_file(self, path_to_image: str):
         img = read_image(path_to_image)
-        img = self.image_transform(img)
-        batch = img.unsqueeze(0)  # (B, C, H, W)
-        return batch
+        img = self.image_transform(img)  # C, H, W
+        return img
 
     def feed(self, batch) -> torch.Tensor:
         if self.model is None:
@@ -95,7 +93,7 @@ class FeatureExtractor:
     def save_feature_maps(self, path_to_image: str, path_to_folder: str, order_by_mean: bool = True):
         try:
             img = self.get_image_from_file(path_to_image)
-            features = self.feed(img).detach().numpy()[0]  # Only first batch
+            features = self.feed(img).detach().numpy()  # Only first batch
 
             file_name = f"feature_map_layer_{self.available_layer_index-1}"
             number_of_zeroes = int(np.ceil(len(features) ** .1))  # For the file name
@@ -109,14 +107,17 @@ class FeatureExtractor:
 
             for idx in map_list:
                 new_path = path_to_folder + file_name + f"{idx}".zfill(number_of_zeroes) + ".jpg"
-                image = Image.fromarray((features[idx] * 255).astype(np.uint8))
-                image.save(new_path)
+                plt.imshow(features[idx], cmap="cividis")
+                plt.axis("off")
+                plt.savefig(new_path, bbox_inches="tight")
+
+            plt.close("all")
 
         except Exception as e:
             print(f"Could not save features to the folder due to: {e}")
 
     def export_onnx(self, export_path: str, dummy_file_path: str):
-        batch = self.get_image_from_file(dummy_file_path)
+        batch = self.get_image_from_file(dummy_file_path).unsqueeze(0)
 
         export_path = export_path + f"_sliced_at_{self.available_layer_index-1}.onnx"
 
@@ -210,9 +211,10 @@ if __name__ == '__main__':
     model_export_name = './onnx_models/mnasnet0_75'
     folder_path = "./feature_maps/"
 
-    fe = FeatureExtractor()
+    fe = FeatureExtractor(device="cpu")
     fe.slice_net(0)
-    image = fe.get_image_from_file(image_path)
+    # fe.save_feature_maps(image_path, folder_path)
+    image = fe.get_image_from_file(image_path).unsqueeze(0)
     output = fe.feed(image)
     # fe.export_onnx(model_export_name, image_path)
     fe.plot_feature_maps(output, plot_shape=(5, 5))
