@@ -34,7 +34,9 @@ class SingleHeadAttention(nn.Module):
         self.masking_triangle = torch.tril(torch.ones(context_length, context_length, device=device))
         self.dropout = nn.Dropout(dropout_rate)
 
-    def forward(self, query, key_or_value):
+    def forward(self, sample):
+        query, key_or_value = sample
+
         _, key_sequence_shape, key_channels_shape = key_or_value.shape
 
         query_vector = self.queries_weights(query)
@@ -66,8 +68,9 @@ class MultiHeadAttention(nn.Module):
         self.projection = nn.Linear(value_shape, embeddings_number, device=device)
         self.dropout = nn.Dropout(dropout_rate)
 
-    def forward(self, query, key_or_value):
-        x = torch.cat([single_head(query, key_or_value) for single_head in self.heads], dim=-1)
+    def forward(self, sample):
+        query, key_or_value = sample
+        x = torch.cat([single_head((query, key_or_value)) for single_head in self.heads], dim=-1)
         x = self.projection(x)
         x = self.dropout(x)
         return x
@@ -99,21 +102,64 @@ class TransformerBlock(nn.Module):
                                           nn.Linear(4 * embeddings_number, embeddings_number, device=device),
                                           nn.Dropout(dropout_rate))
 
-    def forward(self, image, caption):
+    def forward(self, sample):
+        image, caption = sample
         x = self.layer_normalization_1(caption)
-        x = x + self.self_attention(x, x)
+        x = x + self.self_attention((x, x))
         x = self.layer_normalization_2(x)
-        x = x + self.cross_attention(x, image)
+        x = x + self.cross_attention((x, image))
         x = self.layer_normalization_3(x)
         x = x + self.feed_forward(x)
 
         return x
 
 
-class Decoder(nn.Module):
-    def __init__(self):
+class TokenEmbedding(nn.Module):
+    def __init__(self, **kwargs):
         super().__init__()
+        embeddings_number = kwargs["embeddings_number"]
+        vocabulary_size = kwargs["vocabulary_size"]
+        context_length = kwargs["context_length"]
+        self.device = kwargs["device"]
+
+        self.token_embedding_table = nn.Embedding(vocabulary_size, embeddings_number, device=self.device)
+        self.positional_embedding = nn.Embedding(context_length, embeddings_number, device=self.device)
+
+    @staticmethod
+    def __positional_embedding(batch_size: int, embedding_size: int) -> torch.Tensor:
+        # Fixed positional embedding
+        raise NotImplementedError
+
+    def forward(self, sequence):
+        _, sequence_size = sequence.shape
+        token_embedding = self.token_embedding_table(sequence)
+        positional_embedding = self.positional_embedding(torch.arange(sequence_size, device=self.device).unsqueeze(0))
+        sequence = token_embedding + positional_embedding
+        return sequence
+
+
+class Decoder(nn.Module):
+    def __init__(self, **kwargs):
+        super().__init__()
+        embeddings_number = kwargs["embeddings_number"]
+        vocabulary_size = kwargs["vocabulary_size"]
+        blocks_number = kwargs["blocks_number"]
+        device = kwargs["device"]
+        self.device = device
 
         # Embeddings (with positional)
+        self.image_flattener = EncoderBlock()
+        self.embedding = TokenEmbedding(**kwargs)
+        self.linear = nn.Linear(embeddings_number, vocabulary_size, device=device)
+        self.blocks = nn.Sequential(*[TransformerBlock(**kwargs) for _ in range(blocks_number)],
+                                    nn.LayerNorm(embeddings_number, device=device))
+        self.layer_normalization = nn.LayerNorm(embeddings_number, device=device)
 
+    def forward(self, image, caption, targets=None):
+        caption = self.embedding(caption)
+        image = self.image_flattener(image)
+        x = self.blocks((image, caption))
+        x = self.layer_normalization(x)
+        logits = self.linear(x)
 
+        return logits
