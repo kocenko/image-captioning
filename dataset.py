@@ -20,7 +20,8 @@ class ImageCaptionDataset(Dataset):
         input_caption = caption[..., :-1]
         label_caption = caption[..., 1:]
         raw_image = self.extractor.get_image_from_file(self.tokenizer.image_paths[item])
-        return raw_image, input_caption, label_caption
+        transformed_image = self.extractor.feed(raw_image.unsqueeze(0)).squeeze(0)
+        return transformed_image, input_caption, label_caption
 
 
 if __name__ == "__main__":
@@ -35,4 +36,3 @@ if __name__ == "__main__":
     tk = Tokenizer(raw_file, folder, device="cpu")
     ds = ImageCaptionDataset(tk, fe, device="cpu")
     dl = DataLoader(ds, batch_size=50, shuffle=True)
-    print(next(iter(dl))[0].shape)
