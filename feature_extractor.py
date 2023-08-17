@@ -88,7 +88,7 @@ class FeatureExtractor:
     def feed(self, batch) -> torch.Tensor:
         if self.model is None:
             raise AttributeError("Cannot feed model if model is None")
-        return self.model(batch)
+        return self.model(batch).to(dtype=torch.float)
 
     def save_feature_maps(self, path_to_image: str, path_to_folder: str, order_by_mean: bool = True):
         try:
