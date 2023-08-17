@@ -50,7 +50,7 @@ class Tokenizer:
 
     def __pad_tensor(self, token_list: list[int]) -> torch.Tensor:
         token_list = token_list + (self.max_length - len(token_list)) * [self.encode_map[Tokenizer.EMPTY_TOKEN]]
-        return torch.tensor(token_list, device=self.device, dtype=torch.float)
+        return torch.tensor(token_list, device=self.device)
 
     def __extract_captions(self, standardize: bool = True, reduce_vocabulary: bool = True):
         if len(self.captions) > 0:
