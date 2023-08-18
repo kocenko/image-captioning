@@ -36,4 +36,4 @@ model_parameters["context_length"] = tk.max_length
 model_parameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_file).unsqueeze(0)).shape[1]
 
 generator = CaptionGenerator(tk, **model_parameters)
-generator.generate(sample[0][0], tk.max_length)
+print(generator.generate(sample[0][0], tk.max_length))
