@@ -1,11 +1,9 @@
-import torch.onnx
-import onnx
 from torch.utils.data import DataLoader
 
 from tokenizer import Tokenizer
 from feature_extractor import FeatureExtractor
 from dataset import ImageCaptionDataset
-from transformer import Decoder, TokenEmbedding
+from caption_generator import CaptionGenerator
 
 
 file_path = 'dataset/captions.txt'
@@ -37,6 +35,5 @@ model_parameters["vocabulary_size"] = len(tk.word_set)
 model_parameters["context_length"] = tk.max_length
 model_parameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_file).unsqueeze(0)).shape[1]
 
-decoder = Decoder(**model_parameters)
-output = decoder(sample[0], sample[1])
-print(output.shape)
+generator = CaptionGenerator(tk, **model_parameters)
+generator.generate(sample[0][0], tk.max_length)
