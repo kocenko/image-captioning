@@ -1,3 +1,5 @@
+import torch.onnx
+import onnx
 from torch.utils.data import DataLoader
 
 from tokenizer import Tokenizer
@@ -36,5 +38,5 @@ model_parameters["context_length"] = tk.max_length
 model_parameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_file).unsqueeze(0)).shape[1]
 
 decoder = Decoder(**model_parameters)
-# output = decoder(sample[0], sample[1])
-# print(output.shape)
+output = decoder(sample[0], sample[1])
+print(output.shape)

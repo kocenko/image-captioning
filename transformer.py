@@ -41,11 +41,6 @@ class SingleHeadAttention(nn.Module):
         key_vector = self.keys_weights(key_or_value)
         value_vector = self.values_weights(key_or_value)
 
-        # print(f"Q: {query_vector.shape}")
-        # print(f"K: {key_vector.shape}")
-        # print(f"V: {value_vector.shape}")
-        # print()
-
         affinities = query_vector @ key_vector.transpose(-2, -1)  # Transposing channels with sequence
         affinities *= key_channels_shape**(-.5)
         if self.mask_out:
