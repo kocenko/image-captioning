@@ -1,4 +1,4 @@
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 
 from tokenizer import Tokenizer
 from feature_extractor import FeatureExtractor
@@ -27,8 +27,10 @@ fe = FeatureExtractor(device=model_parameters["device"])
 fe.slice_net(model_parameters["net_slice_index"])
 tk = Tokenizer(raw_file, folder, device=model_parameters["device"])
 ds = ImageCaptionDataset(tk, fe, device=model_parameters["device"])
-dl = DataLoader(ds, batch_size=50, shuffle=True)
-sample = next(iter(dl))
+train, valid, test = random_split(ds, (.7, .2, .1))
+
+train_loader = DataLoader(ds, batch_size=50, shuffle=True)
+sample = next(iter(train_loader))
 
 model_parameters["head_size"] = model_parameters["embeddings_number"] // model_parameters["heads_number"]
 model_parameters["vocabulary_size"] = len(tk.word_set)
