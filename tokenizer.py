@@ -49,7 +49,7 @@ class Tokenizer:
         return line
 
     def __pad_tensor(self, token_list: list[int]) -> torch.Tensor:
-        token_list = token_list + (self.max_length - len(token_list) + 1) * [self.encode_map[Tokenizer.EMPTY_TOKEN]]
+        token_list = token_list + (self.max_length - len(token_list)) * [self.encode_map[Tokenizer.EMPTY_TOKEN]]
         return torch.tensor(token_list, device=self.device)
 
     def __extract_captions(self, standardize: bool = True, reduce_vocabulary: bool = True):
@@ -85,7 +85,7 @@ class Tokenizer:
 
     def encode(self, line_to_encode: str) -> torch.Tensor:
         output_list = []
-        word_list = [Tokenizer.START_TOKEN] + self.__standardize(line_to_encode).split() + [Tokenizer.END_TOKEN]
+        word_list = self.__standardize(line_to_encode).split()
 
         for word in word_list:
             if word in self.encode_map:
@@ -106,6 +106,6 @@ if __name__ == '__main__':
     with open(file_path, "r") as f:
         raw_file = f.read()
 
-    tokenizer = Tokenizer(raw_file, folder)
-    print(tokenizer.encode('I am going to work'))
-    # print(tokenizer.decode([0, 10, 20, 4, 28, 1]))
+    tokenizer = Tokenizer(raw_file, folder, device="cpu")
+    # print(tokenizer.encode('<START> I am going to work <END>'))
+    print(tokenizer.decode([0, 10, 20, 4, 28, 1]))

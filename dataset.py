@@ -16,7 +16,7 @@ class ImageCaptionDataset(Dataset):
         return len(self.tokenizer.captions)
 
     def __getitem__(self, item: int):
-        caption = self.tokenizer.encode(self.tokenizer.captions[item])
+        caption = self.tokenizer.encode(f"{self.tokenizer.START_TOKEN} {self.tokenizer.captions[item]} {self.tokenizer.END_TOKEN}")
         input_caption = caption[..., :-1]
         label_caption = caption[..., 1:]
         raw_image = self.extractor.get_image_from_file(self.tokenizer.image_paths[item])
