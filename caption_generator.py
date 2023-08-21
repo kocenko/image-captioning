@@ -5,10 +5,10 @@ from tokenizer import Tokenizer
 
 
 class CaptionGenerator:
-    def __init__(self, tokenizer: Tokenizer, **kwargs):
+    def __init__(self, decoder: Decoder, tokenizer: Tokenizer, **kwargs):
         self.tokenizer: Tokenizer = tokenizer
         self.config = kwargs
-        self.decoder: Decoder = Decoder(**kwargs)
+        self.decoder: Decoder = decoder
 
     def generate(self, image: torch.Tensor, max_size: int) -> str:
         start_vector = self.tokenizer.encode(self.tokenizer.START_TOKEN).unsqueeze(0)
