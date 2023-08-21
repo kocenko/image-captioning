@@ -1,9 +1,10 @@
+import torch
 from torch.utils.data import DataLoader, random_split
 
 from tokenizer import Tokenizer
 from feature_extractor import FeatureExtractor
 from dataset import ImageCaptionDataset
-from caption_generator import CaptionGenerator
+from train import Trainer
 
 
 file_path = 'dataset/captions.txt'
@@ -14,28 +15,30 @@ with open(file_path, "r") as f:
     raw_file = f.read()
 
 # Head size should be equal to embeddings_number // heads_number
-model_parameters = {
+hyperparameters = {
+    "batches": 50,
+    "split_lengths": (.7, .2, .1),
+    "banned_tokens": [0, 2, 3],
     "embeddings_number": 64,
     "dropout_rate": 0.2,
+    "learning_rate": 10e-4,
+    "epochs": 2,
     "blocks_number": 3,
     "heads_number": 4,
+    "head_size": 16,
     "net_slice_index": 97,
     "device": "cpu"
 }
 
-fe = FeatureExtractor(device=model_parameters["device"])
-fe.slice_net(model_parameters["net_slice_index"])
-tk = Tokenizer(raw_file, folder, device=model_parameters["device"])
-ds = ImageCaptionDataset(tk, fe, device=model_parameters["device"])
-train, valid, test = random_split(ds, (.7, .2, .1))
+fe = FeatureExtractor(device=hyperparameters["device"])
+fe.slice_net(hyperparameters["net_slice_index"])
+tk = Tokenizer(raw_file, folder, device=hyperparameters["device"])
+ds = ImageCaptionDataset(tk, fe, device=hyperparameters["device"])
 
-train_loader = DataLoader(ds, batch_size=50, shuffle=True)
-sample = next(iter(train_loader))
+# Updating dependent hyperparameters
+hyperparameters["vocabulary_size"] = len(tk.word_set)
+hyperparameters["context_length"] = tk.max_length
+hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_file).unsqueeze(0)).shape[1]
 
-model_parameters["head_size"] = model_parameters["embeddings_number"] // model_parameters["heads_number"]
-model_parameters["vocabulary_size"] = len(tk.word_set)
-model_parameters["context_length"] = tk.max_length
-model_parameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_file).unsqueeze(0)).shape[1]
-
-generator = CaptionGenerator(tk, **model_parameters)
-print(generator.generate(sample[0][0], tk.max_length))
+trainer = Trainer(tk, fe, ds, hyperparameters)
+trainer.train()
