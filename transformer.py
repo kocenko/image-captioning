@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Optional
 
 import torch
 import torch.nn as nn
@@ -33,6 +33,7 @@ class SingleHeadAttention(nn.Module):
         self.values_weights = nn.Linear(value_input_shape, head_size, bias=False, device=device)
         self.masking_triangle = torch.tril(torch.ones(context_length, context_length, device=device))
         self.dropout = nn.Dropout(dropout_rate)
+        self.last_attention_scores: Optional[torch.Tensor] = None
 
     def forward(self, query, key_or_value):
         _, key_sequence_shape, key_channels_shape = key_or_value.shape
@@ -48,6 +49,7 @@ class SingleHeadAttention(nn.Module):
             affinities = affinities.masked_fill(self.masking_triangle[:S, :S] == 0, float('-inf'))
         affinities = F.softmax(affinities, dim=-1)
         affinities = self.dropout(affinities)
+        self.last_attention_scores = affinities
 
         return affinities @ value_vector
 
@@ -65,9 +67,14 @@ class MultiHeadAttention(nn.Module):
         self.heads = nn.ModuleList([SingleHeadAttention(input_shapes, mask_out, **kwargs) for _ in range(heads_number)])
         self.projection = nn.Linear(embeddings_number, embeddings_number, device=device)
         self.dropout = nn.Dropout(dropout_rate)
+        self.last_attention_scores: Optional[torch.Tensor] = None
 
     def forward(self, query, key_or_value):
-        x = torch.cat([single_head(query, key_or_value) for single_head in self.heads], dim=-1)
+        single_head_outputs = []
+        for single_head in self.heads:
+            single_head_outputs.append(single_head(query, key_or_value))
+            self.last_attention_scores = single_head.last_attention_scores
+        x = torch.cat(single_head_outputs, dim=-1)
         x = self.projection(x)
         x = self.dropout(x)
         return x
@@ -98,12 +105,15 @@ class TransformerBlock(nn.Module):
                                           nn.ReLU(),
                                           nn.Linear(4 * embeddings_number, embeddings_number, device=device),
                                           nn.Dropout(dropout_rate))
+        self.last_attention_scores: Optional[torch.Tensor] = None
 
     def forward(self, image, caption):
         x = self.layer_normalization_1(caption)
         x = x + self.self_attention(x, x)
         x = self.layer_normalization_2(x)
-        x = x + self.cross_attention(x, image)
+        cross_attention = self.cross_attention(x, image)
+        self.last_attention_scores = self.cross_attention.last_attention_scores
+        x = x + cross_attention
         x = self.layer_normalization_3(x)
         x = x + self.feed_forward(x)
 
@@ -140,6 +150,7 @@ class Decoder(nn.Module):
         embeddings_number = kwargs["embeddings_number"]
         vocabulary_size = kwargs["vocabulary_size"]
         self.blocks_number = kwargs["blocks_number"]
+        self.banned_tokens = kwargs["banned_tokens"]
         self.device = kwargs["device"]
 
         # Embeddings (with positional)
@@ -149,7 +160,7 @@ class Decoder(nn.Module):
         self.blocks = [TransformerBlock(**kwargs) for _ in range(self.blocks_number)]
         self.layer_normalization = nn.LayerNorm(embeddings_number, device=self.device)
 
-    def forward(self, image, caption, targets=None):
+    def forward(self, image, caption):
         image = self.image_flattener(image)
         x = self.embedding(caption)
 
@@ -158,5 +169,9 @@ class Decoder(nn.Module):
 
         x = self.layer_normalization(x)
         logits = self.linear(x)
+
+        # Masking out banned tokens
+        for token in self.banned_tokens:
+            logits[:, :, token] = 0
 
         return logits
