@@ -69,7 +69,8 @@ class Trainer:
             losses = torch.zeros(iterations)
             for i in range(iterations):
                 image, caption, label = loader.__next__()
-                logits = self.decoder(image, caption)
+                image, caption, label = image.to(self.device), caption.to(self.device), label.to(self.device)
+                logits = self.decoder(image, caption).to(self.device)
                 loss = self.__calc_single_loss(logits, label)
                 losses[i] = loss.item()
             outcome_losses[split_type[t]] = losses.mean()
