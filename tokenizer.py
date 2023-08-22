@@ -22,7 +22,6 @@ class Tokenizer:
         self.raw_text: str = raw_text
         self.image_paths: list[str] = []
         self.captions: list[str] = []
-        self.word_set: set = set()
         self.word_frequency: Counter = Counter()
         self.max_length: int = 0
         self.device: str = device
@@ -33,6 +32,7 @@ class Tokenizer:
         unknown_token = Tokenizer.UNKNOWN_TOKEN
         empty_token = Tokenizer.EMPTY_TOKEN
 
+        self.word_set: set = {start_token, end_token, unknown_token, empty_token}
         self.encode_map = {start_token: 0, end_token: 1, unknown_token: 2, empty_token: 3}
         self.decode_map = {0: start_token, 1: end_token, 2: unknown_token, 3: empty_token}
         self.__extract_captions(standardize, reduce_vocabulary)
@@ -108,4 +108,4 @@ if __name__ == '__main__':
 
     tokenizer = Tokenizer(raw_file, folder, device="cpu")
     # print(tokenizer.encode('<START> I am going to work <END>'))
-    print(tokenizer.decode([0, 10, 20, 4, 28, 1]))
+    # print(tokenizer.decode([0, 10, 20, 4, 28, 1]))
