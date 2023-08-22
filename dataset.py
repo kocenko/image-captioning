@@ -20,7 +20,7 @@ class ImageCaptionDataset(Dataset):
         input_caption = caption[..., :-1]
         label_caption = caption[..., 1:]
         raw_image = self.extractor.get_image_from_file(self.tokenizer.image_paths[item])
-        transformed_image = self.extractor.feed(raw_image.unsqueeze(0)).squeeze(0)
+        transformed_image = self.extractor.feed(raw_image.unsqueeze(0).to(self.device)).squeeze(0)
         return transformed_image, input_caption, label_caption
 
 
