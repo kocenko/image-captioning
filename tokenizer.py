@@ -61,7 +61,7 @@ class Tokenizer:
             if len(raw_caption) < 2:
                 raise ValueError("Improper line format")
 
-            self.image_paths.append(os.path.join(self.images_folder, raw_caption[0].split('#')[0]))
+            self.image_paths.append(os.path.join(self.images_folder, raw_caption[0].split('.')[0] + ".jpg"))
             caption = raw_caption[1]
             if standardize:
                 caption = self.__standardize(caption)
