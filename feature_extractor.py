@@ -1,6 +1,6 @@
 import os.path
 import random
-from typing import Tuple, List, Dict, Any, Union
+from typing import Tuple, List, Dict, Any
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,11 +12,32 @@ import onnx
 
 
 class FeatureExtractor:
-    def __init__(self, model_name: str = "mnasnet0_75", device: str = "cuda"):
-        self.model = None
+    """
+    Class used to define a feature extractor by using pretrained model and visualize its outcomes.
+
+    Attributes:
+        model (Any): pretrained model used for feature extraction
+        mapping (dict[int, list[int]]): dict used to track which modules should be unpacked to get to the layer.
+                                        The key is the layer's number and the value is the list of indexes of
+                                        the children modules which contain the layer
+        available_layer_index (int): a value used during net mapping. It depicts the next available layer number.
+        image_transform (Any): image transformator associated with the pretrained model. Used to convert raw images.
+        device (str): name of the device on which the calculations are performed
+    """
+
+    def __init__(self, model_name: str = "mnasnet0_75", device: str = "cuda") -> None:
+        """
+        Initializes feature extractor's attributes
+
+        Args:
+            model_name (str): name of the pretrained model which will be used to extract features
+            device (str): device (str): name of the device on which the calculations are performed
+        """
+
+        self.model: Any = None
         self.mapping: Dict[int, List[int]] = {}
         self.available_layer_index: int = 0
-        self.image_transform = None
+        self.image_transform: Any = None
         self.device: str = device
 
         if model_name == "mnasnet0_75":
@@ -24,13 +45,21 @@ class FeatureExtractor:
             self.model: MNASNet = mnasnet0_75(weights=weights)
             self.model.to(self.device)
             self.model.train(False)
+
             self.model = self.model.layers
-            self.image_transform: Any = weights.transforms(antialias=True)
+            self.image_transform = weights.transforms(antialias=True)
             self.generate_mapping()
         else:
             raise NotImplementedError
 
     def unravel_net(self, group: nn.Sequential, path: List[int] = None) -> None:
+        """
+        A method which (as a recursion block) performs the network mapping
+
+        Args:
+            group (nn.Sequential): a module, group or any type of container containing other layers
+            path (list[int]): path of indices leading to the group
+        """
 
         if path is None:
             path = []
@@ -46,13 +75,34 @@ class FeatureExtractor:
                 self.available_layer_index = self.available_layer_index + 1
 
     def generate_mapping(self, force: bool = False) -> None:
+        """
+        A method performing net mapping. Invokes method unraveling one group
+
+        Args:
+            force (bool): whether to perform mapping when mapping has been already performed
+        """
+
         if not bool(self.mapping) or (bool(self.mapping) and force):
             self.available_layer_index = 0
             self.unravel_net(self.model)
         else:
             print("Mapping was already performed. Change 'force' parameter to True.")
 
-    def get_layer(self, layer_index: int) -> Union[nn.Sequential, nn.Module]:
+    def get_layer(self, layer_index: int) -> Any:
+        """
+        A method used to extract single layer from the net
+
+        Args:
+            layer_index (int): number of the layer to extract (counting from the input to the output)
+
+        Returns:
+            Layer of the given index
+
+        Raises:
+            AttributeError: when the mapping has not been performed yet
+            ValueError: when the layer index is out of range
+        """
+
         if not bool(self.mapping):
             raise AttributeError("To get layer you need to generate mapping first using 'generate mapping' method.")
 
@@ -66,6 +116,16 @@ class FeatureExtractor:
         return layer
 
     def slice_net(self, layer_index: int):
+        """
+        A method extracting from the model the part of the model up until the layer with the given index (including)
+
+        Args:
+            layer_index(int): index of the layer after which the cutting is performed
+
+        Returns:
+            Extracted layers and blocks contained in the Sequential module
+        """
+
         if not bool(self.mapping):
             raise AttributeError("To slice net you need to generate mapping first using 'generate mapping' method.")
 
@@ -80,17 +140,46 @@ class FeatureExtractor:
         self.model = nn.Sequential(*subnet)
         self.generate_mapping(True)
 
-    def get_image_from_file(self, path_to_image: str):
+    def get_image_from_file(self, path_to_image: str) -> Any:
+        """
+        Used for reading the image from the given path and transforming it using models' predefined transformation
+
+        Args:
+             path_to_image (str): path to the image to read
+
+        Returns:
+            Image after transformation
+        """
+
         img = read_image(path_to_image)
         img = self.image_transform(img)  # C, H, W
         return img
 
-    def feed(self, batch) -> torch.Tensor:
+    def feed(self, batch: Any) -> torch.Tensor:
+        """
+        Method used to get the outcome after feeding the pretrained model
+
+        Args:
+            batch (Any): the input with the expected shape (B, C, H, W) or  (C, H, W)
+
+        Returns:
+            A tensor as an output of the model.
+        """
+
         if self.model is None:
             raise AttributeError("Cannot feed model if model is None")
         return self.model(batch).to(dtype=torch.float)
 
-    def save_feature_maps(self, path_to_image: str, path_to_folder: str, order_by_mean: bool = True):
+    def save_feature_maps(self, path_to_image: str, path_to_folder: str, order_by_mean: bool = True) -> None:
+        """
+        Method used to save feature maps of the current net to the folder
+
+        Args:
+            path_to_image (str): path to the sample file used for visualization
+            path_to_folder (str): path to the folder where the feature maps will be saved
+            order_by_mean (bool): whether the images should be ordered by their mean intensity
+        """
+
         try:
             img = self.get_image_from_file(path_to_image)
             features = self.feed(img).detach().numpy()  # Only first batch
@@ -116,9 +205,15 @@ class FeatureExtractor:
         except Exception as e:
             print(f"Could not save features to the folder due to: {e}")
 
-    def export_onnx(self, export_path: str, dummy_file_path: str):
-        batch = self.get_image_from_file(dummy_file_path).unsqueeze(0)
+    def export_onnx(self, export_path: str, dummy_file_path: str) -> None:
+        """
+        A method used for exporting the model in the onnx format
 
+        Args:
+            export_path (str): path of the folder where the exported file will be saved
+            dummy_file_path (str): path of the file used to determine the shapes and connections between layers
+        """
+        batch = self.get_image_from_file(dummy_file_path).unsqueeze(0)
         export_path = export_path + f"_sliced_at_{self.available_layer_index-1}.onnx"
 
         add_shape_info = False
@@ -130,7 +225,21 @@ class FeatureExtractor:
             onnx.save(onnx.shape_inference.infer_shapes(onnx.load(export_path)), export_path)
 
     @staticmethod
-    def plot_feature_maps(features: torch.Tensor, plot_shape: Tuple = (5, 5), seed: int = None):
+    def plot_feature_maps(features: torch.Tensor, plot_shape: Tuple = (5, 5), seed: int = None) -> None:
+        """
+        A method used for visualizing feature maps on the screen
+
+        Args:
+            features (torch.Tensor): output from the net
+            plot_shape (tuple): shape of the plot
+            seed (int): passed to the random generator. Used for reproducibility
+
+        Raises:
+            ValueError:
+                When the given tensor has wrong dimensions,
+                When the given shape consists of not positive values
+        """
+
         try:
             features = features.detach().numpy()
             number_of_maps = features.shape[1]
@@ -169,7 +278,20 @@ class FeatureExtractor:
         except Exception as e:
             print(f"Could not plot features due to: {e}")
 
-    def plot_filters(self, layer_idx: int, how_many: int, normalize: bool = True, seed: int = None):
+    def plot_filters(self, layer_idx: int, how_many: int, normalize: bool = True, seed: int = None) -> None:
+        """
+        A method used for plotting the filter shapes and weights of the given layer
+
+        Args:
+            layer_idx (int): index of the layer to visualize
+            how_many (int): number of filters to visualize
+            normalize (bool): whether the weights should be normalized before visualization
+            seed (int): passed to the random generator. Used for reproducibility
+
+        Raises:
+            ValueError: when the given number of filters to visualize is bigger than actual number of filters
+        """
+
         try:
             filters = self.get_layer(layer_idx).weight.detach().numpy()
             c_out, c_in, h, w = filters.shape  # (Channels_out, Channels_in/Groups, K_height, K_width)
