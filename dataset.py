@@ -1,6 +1,7 @@
 from tokenizer import Tokenizer
 from feature_extractor import FeatureExtractor
 
+import torch
 from torch.utils.data import Dataset, DataLoader
 
 
@@ -15,6 +16,7 @@ class ImageCaptionDataset(Dataset):
 
     def __getitem__(self, item: int):
         caption = self.tokenizer.encode(f"{self.tokenizer.start_token} {self.tokenizer.captions[item]} {self.tokenizer.end_token}")
+        caption = torch.tensor(caption, device=self.device)
         input_caption = caption[..., :-1]
         label_caption = caption[..., 1:]
         raw_image = self.extractor.get_image_from_file(self.tokenizer.image_paths[item])
