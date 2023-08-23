@@ -1,101 +1,179 @@
 import os
 import string
-from collections import Counter
-
-import torch
 
 
 class Tokenizer:
-    EMPTY_TOKEN = ''
-    START_TOKEN = '<start>'
-    END_TOKEN = '<end>'
-    UNKNOWN_TOKEN = '<unknown>'
+    """
+    Class used for parsing dataset captions' file and tokenizing
+
+    Attributes:
+        raw_text (str): text containing lines of pairs (image_name, caption) formatted like: name.jpg#num \t caption
+        images_folder (str): path to the folder containing images
+        image_paths (list[str]): list of paths to the image files
+        captions (list[str]): list of the captions
+        word_list (list): list of ordered set of all word tokens
+        encode_map (dict): dict used to map tokens to indices
+        decode_map (dict): dict used to map indices to tokens
+        __standardize (bool): whether to transform the caption (like replacing symbols and converting to lowercase)
+        __reduce (bool): whether to remove elements from the vocabulary based on some rule
+        max_length (int): the maximum length of the caption (including start and end tokens)
+    """
+
+    empty_token = ''
+    start_token = '<start>'
+    end_token = '<end>'
+    unknown_token = '<unknown>'
+
+    base_tokens = [empty_token, start_token, end_token, unknown_token]
+    base_encode_map = {token: i for i, token in enumerate(base_tokens)}
+    base_decode_map = {i: token for i, token in enumerate(base_tokens)}
 
     def __init__(
-            self, raw_text: str,
+            self,
+            raw_text: str,
             images_folder: str,
             standardize: bool = True,
-            reduce_vocabulary: bool = True,
-            device: str = "cuda"
+            reduce: bool = False
     ) -> None:
+        """
+        Initializes tokenizer's attributes
+
+        Args:
+            raw_text (str): text containing lines of pairs (image_name, caption) formatted like: name.jpg#num \t caption
+            images_folder (str): path to the folder containing images
+            standardize (bool): whether to transform the caption (like replacing symbols and converting to lowercase)
+            reduce (bool): whether to remove elements from the vocabulary based on some rule
+        """
 
         self.raw_text: str = raw_text
+        self.images_folder: str = images_folder
         self.image_paths: list[str] = []
         self.captions: list[str] = []
-        self.word_frequency: Counter = Counter()
-        self.max_length: int = 0
-        self.device: str = device
-        self.images_folder: str = images_folder
+        self.word_list: list[str] = []
+        self.encode_map: dict = Tokenizer.base_encode_map
+        self.decode_map: dict = Tokenizer.base_decode_map
+        self.__standardize: bool = standardize
+        self.__reduce: bool = reduce
 
-        start_token = Tokenizer.START_TOKEN
-        end_token = Tokenizer.END_TOKEN
-        unknown_token = Tokenizer.UNKNOWN_TOKEN
-        empty_token = Tokenizer.EMPTY_TOKEN
+        self.__extract_captions()
+        self.max_length: int = len(max(self.captions, key=len)) + 2  # Plus 2 for <start> and <end> tokens
 
-        self.word_set: set = {start_token, end_token, unknown_token, empty_token}
-        self.encode_map = {start_token: 0, end_token: 1, unknown_token: 2, empty_token: 3}
-        self.decode_map = {0: start_token, 1: end_token, 2: unknown_token, 3: empty_token}
-        self.__extract_captions(standardize, reduce_vocabulary)
-
-        if reduce_vocabulary:
+        if self.__reduce:
             self.__reduce_vocabulary()
 
         self.__create_mappings()
 
     @staticmethod
-    def __standardize(line: str) -> str:
+    def standardize(line: str) -> str:
+        """
+        Converts input line to the unified format
+
+        Args:
+            line (str): string to standardize
+
+        Returns:
+            Standardized string
+        """
+
         line = line.lower()
         line.translate(str.maketrans('', '', string.punctuation))  # Removing punctuation
         return line
 
-    def __pad_tensor(self, token_list: list[int]) -> torch.Tensor:
-        token_list = token_list + (self.max_length - len(token_list)) * [self.encode_map[Tokenizer.EMPTY_TOKEN]]
-        return torch.tensor(token_list, device=self.device)
+    def __pad(self, token_list: list[int]) -> list[int]:
+        """
+        Pads the input list to the maximum length
 
-    def __extract_captions(self, standardize: bool = True, reduce_vocabulary: bool = True):
+        Args:
+            token_list (list[int]): input token list to pad.
+
+        Returns:
+            Input list padded with empty tokens to the size of max_length
+        """
+
+        return token_list + (self.max_length - len(token_list)) * [self.encode_map[Tokenizer.empty_token]]
+
+    def __extract_captions(self):
+        """
+        Method used to parse the input text
+        """
+
         if len(self.captions) > 0:
             raise AttributeError("Captions have been already extracted from the raw text.")
 
+        word_set = set()
         for line in self.raw_text.splitlines():
             raw_caption = line.split('\t', 1)
             if len(raw_caption) < 2:
                 raise ValueError("Improper line format")
 
             self.image_paths.append(os.path.join(self.images_folder, raw_caption[0].split('.')[0] + ".jpg"))
-            caption = raw_caption[1]
-            if standardize:
-                caption = self.__standardize(caption)
 
-            if len(caption) > self.max_length:
-                self.max_length = len(caption)
+            caption = raw_caption[1]
+            if self.standardize:
+                caption = self.standardize(caption)
 
             captions_set = set(caption.split())
-            if reduce_vocabulary:
-                self.word_frequency.update(captions_set)
 
-            self.word_set = self.word_set | captions_set
+            word_set = word_set | captions_set
             self.captions.append(caption)
 
+        self.word_list = sorted(word_set)
+
     def __reduce_vocabulary(self):
-        pass
+        raise NotImplementedError
 
     def __create_mappings(self):
-        self.encode_map = self.encode_map | {token: i + len(self.encode_map) for i, token in enumerate(self.word_set)}
-        self.decode_map = self.decode_map | {i + len(self.decode_map): token for i, token in enumerate(self.word_set)}
+        """
+        Method used to construct mappings based on the current word set
+        """
 
-    def encode(self, line_to_encode: str) -> torch.Tensor:
+        base_encode_size = len(self.encode_map)
+        base_decode_size = len(self.decode_map)
+
+        self.encode_map = self.encode_map | {token: i + base_encode_size for i, token in enumerate(self.word_list)}
+        self.decode_map = self.decode_map | {i + base_decode_size: token for i, token in enumerate(self.word_list)}
+        self.word_list = Tokenizer.base_tokens + self.word_list
+
+    def encode(self, line_to_encode: str, pad: bool = True) -> list[int]:
+        """
+        Method used to encode the given string into the list of token indices.
+
+        Note:
+            The input does not have to start with <start> and end with <end>.
+            Padding with those tokens should be handled before passing string to this method
+
+        Args:
+            line_to_encode (str): string to encode
+            pad (bool): should the outcome be padded
+
+        Returns:
+            A list of tokens' indices corresponding to the given string input.
+        """
+
         output_list = []
-        word_list = self.__standardize(line_to_encode).split()
+        word_list = self.standardize(line_to_encode).split()
 
         for word in word_list:
             if word in self.encode_map:
                 output_list.append(self.encode_map[word])
             else:
-                output_list.append(self.encode_map[Tokenizer.UNKNOWN_TOKEN])
+                output_list.append(self.encode_map[Tokenizer.unknown_token])
 
-        return self.__pad_tensor(output_list)
+        if pad:
+            output_list = self.__pad(output_list)
 
-    def decode(self, list_to_decode: list) -> str:
+        return output_list
+
+    def decode(self, list_to_decode: list[int]) -> str:
+        """
+        Method returning a string constructed from the tokens of given indices
+
+        Args:
+            list_to_decode (list[int]): List of tokens' indices
+
+        Returns:
+            String constructed from tokens of the given indices
+        """
         return ' '.join([self.decode_map[token] for token in list_to_decode])
 
 
@@ -106,6 +184,7 @@ if __name__ == '__main__':
     with open(file_path, "r") as f:
         raw_file = f.read()
 
-    tokenizer = Tokenizer(raw_file, folder, device="cpu")
-    # print(tokenizer.encode('<START> I am going to work <END>'))
-    # print(tokenizer.decode([0, 10, 20, 4, 28, 1]))
+    tokenizer = Tokenizer(raw_file, folder)
+
+    print(tokenizer.encode('<START> I am going to work <END>', pad=False))
+    print(tokenizer.decode([1, 10, 20, 4, 28, 2]))
