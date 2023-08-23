@@ -1,6 +1,3 @@
-import torch
-from torch.utils.data import DataLoader, random_split
-
 from tokenizer import Tokenizer
 from feature_extractor import FeatureExtractor
 from dataset import ImageCaptionDataset
@@ -32,11 +29,11 @@ hyperparameters = {
 
 fe = FeatureExtractor(device=hyperparameters["device"])
 fe.slice_net(hyperparameters["net_slice_index"])
-tk = Tokenizer(raw_file, folder, device=hyperparameters["device"])
+tk = Tokenizer(raw_file, folder)
 ds = ImageCaptionDataset(tk, fe, device=hyperparameters["device"])
 
 # Updating dependent hyperparameters
-hyperparameters["vocabulary_size"] = len(tk.word_set)
+hyperparameters["vocabulary_size"] = len(tk.word_list)
 hyperparameters["context_length"] = tk.max_length
 hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_file).unsqueeze(0)).shape[1]
 
