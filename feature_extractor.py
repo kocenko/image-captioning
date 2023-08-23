@@ -163,7 +163,7 @@ class FeatureExtractor:
             batch (Any): the input with the expected shape (B, C, H, W) or  (C, H, W)
 
         Returns:
-            A tensor as an output of the model.
+            A tensor as an output of the model. The shape is analogous to the input.
         """
 
         if self.model is None:
