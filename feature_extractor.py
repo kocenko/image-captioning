@@ -153,6 +153,7 @@ class FeatureExtractor:
 
         img = read_image(path_to_image)
         img = self.image_transform(img)  # C, H, W
+        img = img.to(self.device)
         return img
 
     def feed(self, batch: Any) -> torch.Tensor:
