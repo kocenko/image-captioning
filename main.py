@@ -2,6 +2,11 @@ from tokenizer import Tokenizer
 from feature_extractor import FeatureExtractor
 from dataset import ImageCaptionDataset
 from train import Trainer
+from caption_generator import CaptionGenerator
+from transformer import Decoder
+
+import torch
+from torch.utils.data import DataLoader
 
 
 file_path = 'dataset/captions.txt'
@@ -36,6 +41,14 @@ ds = ImageCaptionDataset(tk, fe, device=hyperparameters["device"])
 hyperparameters["vocabulary_size"] = len(tk.word_list)
 hyperparameters["context_length"] = tk.max_length
 hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_file).unsqueeze(0)).shape[1]
+hyperparameters["word_count"] = tk.counter
+hyperparameters["encode_map"] = tk.encode_map
 
-trainer = Trainer(tk, fe, ds, hyperparameters)
-trainer.train()
+
+dec = Decoder(**hyperparameters)
+gen = CaptionGenerator(dec, tk, fe, **hyperparameters)
+
+print(gen.generate(sample_image_file, max_size=20))
+
+# trainer = Trainer(tk, fe, ds, hyperparameters)
+# trainer.train()
