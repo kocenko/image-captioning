@@ -2,16 +2,15 @@ from tokenizer import Tokenizer
 from feature_extractor import FeatureExtractor
 from dataset import ImageCaptionDataset
 from train import Trainer
-from caption_generator import CaptionGenerator
 from transformer import Decoder
 
-import torch
-from torch.utils.data import DataLoader
-
+from torch.utils.tensorboard import SummaryWriter
 
 file_path = 'dataset/captions.txt'
 folder = 'dataset/images/'
 sample_image_file = 'imgs/rooster.jpg'
+checkpoint_path = 'checkpoints/'
+summary_folder = 'summary/'
 
 with open(file_path, "r") as f:
     raw_file = f.read()
@@ -29,6 +28,8 @@ hyperparameters = {
     "heads_number": 4,
     "head_size": 16,
     "net_slice_index": 97,
+    "eval_iterations": 200,
+    "eval_per_epoch": 20,
     "device": "cpu"
 }
 
@@ -36,6 +37,7 @@ fe = FeatureExtractor(device=hyperparameters["device"])
 fe.slice_net(hyperparameters["net_slice_index"])
 tk = Tokenizer(raw_file, folder)
 ds = ImageCaptionDataset(tk, fe, device=hyperparameters["device"])
+wr = SummaryWriter(summary_folder)
 
 # Updating dependent hyperparameters
 hyperparameters["vocabulary_size"] = len(tk.word_list)
@@ -46,9 +48,6 @@ hyperparameters["encode_map"] = tk.encode_map
 
 
 dec = Decoder(**hyperparameters)
-gen = CaptionGenerator(dec, tk, fe, **hyperparameters)
 
-print(gen.generate(sample_image_file, max_size=20))
-
-# trainer = Trainer(tk, fe, ds, hyperparameters)
-# trainer.train()
+trainer = Trainer(tk, fe, ds, checkpoint_path, sample_image_file, wr, hyperparameters)
+trainer.train()
