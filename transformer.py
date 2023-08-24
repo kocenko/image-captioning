@@ -47,8 +47,8 @@ class SingleHeadAttention(nn.Module):
         affinities = query_vector @ key_vector.transpose(-2, -1)  # Transposing channels with sequence
         affinities *= key_channels_shape**(-.5)
         if self.mask_out:
-            S = key_sequence_shape
-            affinities = affinities.masked_fill(self.masking_triangle[:S, :S] == 0, float('-inf'))
+            s = key_sequence_shape
+            affinities = affinities.masked_fill(self.masking_triangle[:s, :s] == 0, float('-inf'))
         affinities = F.softmax(affinities, dim=-1)
         affinities = self.dropout(affinities)
         self.last_attention_scores = affinities
@@ -172,7 +172,7 @@ class DecoderOutputLayer(nn.Module):
 
         self.bias = log_p
         self.bias[counts_list == 0] = -1e9
-        self.bias = torch.tensor(self.bias)
+        self.bias = torch.tensor(self.bias, device=self.device)
 
     def forward(self, x):
         x = self.linear(x)
