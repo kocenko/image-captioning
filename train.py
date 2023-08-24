@@ -100,7 +100,7 @@ class Trainer:
                        progress_path: str):
 
         captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, **self.hyperparams)
-        self.writer.add_text("Captioner", captioner.generate(self.sample_image_path))
+        self.writer.add_text("Captioner", captioner.generate(self.sample_image_path, max_size=80))
 
         e = current_epoch
         if progress_path is not None:
