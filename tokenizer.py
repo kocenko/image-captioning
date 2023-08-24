@@ -1,5 +1,6 @@
 import os
 import string
+from collections import Counter
 
 
 class Tokenizer:
@@ -12,6 +13,7 @@ class Tokenizer:
         image_paths (list[str]): list of paths to the image files
         captions (list[str]): list of the captions
         word_list (list): list of ordered set of all word tokens
+        counter (counter): keeps track of tokens count
         encode_map (dict): dict used to map tokens to indices
         decode_map (dict): dict used to map indices to tokens
         __standardize (bool): whether to transform the caption (like replacing symbols and converting to lowercase)
@@ -50,6 +52,7 @@ class Tokenizer:
         self.image_paths: list[str] = []
         self.captions: list[str] = []
         self.word_list: list[str] = []
+        self.counter: Counter = Counter()
         self.encode_map: dict = Tokenizer.base_encode_map
         self.decode_map: dict = Tokenizer.base_decode_map
         self.__standardize: bool = standardize
@@ -113,6 +116,7 @@ class Tokenizer:
                 caption = self.standardize(caption)
 
             captions_set = set(caption.split())
+            self.counter.update(caption.split())
 
             word_set = word_set | captions_set
             self.captions.append(caption)
