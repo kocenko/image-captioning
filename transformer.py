@@ -172,6 +172,7 @@ class DecoderOutputLayer(nn.Module):
 
         self.bias = log_p
         self.bias[counts_list == 0] = -1e9
+        self.bias = torch.tensor(self.bias)
 
     def forward(self, x):
         x = self.linear(x)
