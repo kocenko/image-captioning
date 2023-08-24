@@ -1,5 +1,7 @@
+from collections import Counter
 from typing import Tuple, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -144,21 +146,51 @@ class TokenEmbedding(nn.Module):
         return sequence
 
 
+class DecoderOutputLayer(nn.Module):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.counter: Counter = kwargs["word_count"]
+        self.banned_tokens: list = kwargs["banned_tokens"]
+        self.encode_map: dict = kwargs["encode_map"]
+        self.device: str = kwargs["device"]
+
+        embeddings_number = kwargs["embeddings_number"]
+        vocabulary_size = kwargs["vocabulary_size"]
+        self.linear = nn.Linear(embeddings_number, vocabulary_size, device=self.device)
+
+        counts_list = np.zeros(shape=(vocabulary_size,))
+        token_indexes = np.array([self.encode_map[key] for key in self.counter.keys()])
+        counts_list[token_indexes] = list(self.counter.values())
+
+        counts_list[self.banned_tokens] = 0
+
+        # Creating bias based on the tokens distribution
+        all_occurrences = counts_list.sum()
+        scaled_counts = counts_list/all_occurrences  # p
+        scaled_counts[counts_list == 0] = 1
+        log_p = np.log(scaled_counts)
+
+        self.bias = log_p
+        self.bias[counts_list == 0] = -1e9
+
+    def forward(self, x):
+        x = self.linear(x)
+        return x + self.bias
+
+
 class Decoder(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
         embeddings_number = kwargs["embeddings_number"]
-        vocabulary_size = kwargs["vocabulary_size"]
         self.blocks_number = kwargs["blocks_number"]
-        self.banned_tokens = kwargs["banned_tokens"]
         self.device = kwargs["device"]
 
         # Embeddings (with positional)
         self.image_flattener = EncoderBlock()
         self.embedding = TokenEmbedding(**kwargs)
-        self.linear = nn.Linear(embeddings_number, vocabulary_size, device=self.device)
         self.blocks = [TransformerBlock(**kwargs) for _ in range(self.blocks_number)]
         self.layer_normalization = nn.LayerNorm(embeddings_number, device=self.device)
+        self.output_layer = DecoderOutputLayer(**kwargs)
 
     def forward(self, image, caption):
         image = self.image_flattener(image)
@@ -168,10 +200,6 @@ class Decoder(nn.Module):
             x = block(image, x)
 
         x = self.layer_normalization(x)
-        logits = self.linear(x)
-
-        # Masking out banned tokens
-        for token in self.banned_tokens:
-            logits[:, :, token] = 0
+        logits = self.output_layer(x)
 
         return logits
