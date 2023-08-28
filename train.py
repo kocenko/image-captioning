@@ -1,21 +1,9 @@
-# TODO:
-# > Saving loss function graphs
-# > Saving the captions for one chosen image along the training process
-# ...
-# > Plotting attention maps
-# Tokenizer does not change no matter what. It is completely dependent on the dataset.
-# Feature extractor depends on the tokenizer attributes AND slicing point.
-# Slicing point might be an interesting thing to parametrize and optimize.
-# We can try implementing grid or random search looking for the best hyperparameters...
-#
-# Add also some metrics like BLEU or ROUGE...
-
 import os
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
 import torch
-import torch.nn.functional as F
+import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 
@@ -27,17 +15,50 @@ from tokenizer import Tokenizer
 
 
 class Trainer:
+    """
+    A class used for training the decoder
+
+    Attributes:
+        tokenizer (Tokenizer): custom tokenizer
+        feature_extractor (FeatureExtractor): pre-trained feature extractor
+        checkpoint_path (str): path of the folder where checkpoint files are saved
+        sample_image_path (str): path to the file, which is used to generate captions
+        writer (SummaryWriter): log writer object
+        hyperparams (dict): dict of parameters used in the training
+        train_set (Subset): subset of the dataset used for training
+        valid_set (Subset): subset of the dataset used for validation
+        test_set (Subset): subset of the dataset used for testing
+        decoder (Decoder): decoder used for caption generation
+        device (str): string indicating which device will be used for calculations
+    """
+
     allowed_optimizations: list[str] = ["grid", "random"]
     datetime_format = "%Y-%m-%d %H-%M-%S"
 
-    def __init__(self,
-                 tokenizer: Tokenizer,
-                 feature_extractor: FeatureExtractor,
-                 dataset: ImageCaptionDataset,
-                 checkpoint_path: str,
-                 sample_image_path: str,
-                 writer: SummaryWriter,
-                 hyperparams: dict):
+    def __init__(
+            self,
+            tokenizer: Tokenizer,
+            feature_extractor: FeatureExtractor,
+            dataset: ImageCaptionDataset,
+            checkpoint_path: str,
+            sample_image_path: str,
+            writer: SummaryWriter,
+            hyperparams: dict,
+            test: bool = False
+    ) -> None:
+        """
+        Initializes Trainer class
+
+        Args:
+            tokenizer (Tokenizer): custom tokenizer
+            feature_extractor (FeatureExtractor): pre-trained feature extractor
+            dataset (ImageCaptionDataset): custom dataset
+            checkpoint_path (str): path of the folder where checkpoint files are saved
+            sample_image_path (str): path to the file, which is used to generate captions
+            writer (SummaryWriter): log writer object
+            hyperparams (dict): dict of parameters used in the training
+            test (bool): whether to load only one sample for each subset of the dataset
+        """
 
         self.tokenizer: Tokenizer = tokenizer
         self.feature_extractor: FeatureExtractor = feature_extractor
@@ -48,14 +69,29 @@ class Trainer:
         self.device: str = hyperparams["device"]
 
         # Splitting dataset into subsets
-        generator = torch.Generator().manual_seed(42)
-        split_lengths = hyperparams["split_lengths"]
-        self.train_set, self.valid_set, self.test_set = random_split(dataset, split_lengths, generator=generator)
+        if not test:
+            generator = torch.Generator().manual_seed(42)
+            split_lengths = hyperparams["split_lengths"]
+            self.train_set, self.valid_set, self.test_set = random_split(dataset, split_lengths, generator=generator)
+        else:
+            self.train_set, self.valid_set, self.test_set = dataset[0], dataset[1], dataset[2]
 
-        # The main role
         self.decoder: Decoder = Decoder(**self.hyperparams)
 
     def __training_in_progress_path(self) -> Optional[str]:
+        """
+        A method used for finding path to the checkpoint of the training in progress
+
+        It returns a path to the file with a checkpoint. Checkpoint contains model's and optimizer's parameters and
+        other saved parameters. The name of the file indicates whether the training is finished (the number of
+        the current epoch is equal to the number of all epochs). When there are multiple files of the ongoing trainings,
+        it returns the one which started the latest.
+
+        Returns:
+            None if there is not any checkpoint file of ongoing training
+            Path to the file (string) if there are files in the folder of the model in training
+        """
+
         all_files = os.listdir(self.checkpoint_path)
 
         if len(all_files) == 0:
@@ -84,30 +120,55 @@ class Trainer:
 
         return timestamp_files[max(timestamp_files, key=timestamp_files.get)]
 
-    def __calc_single_loss(self, predictions, labels):
+    def __calc_single_loss(self, predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """
+        Calculates a loss of a single predictions-labels pair
+
+        Args:
+            predictions (Tensor): captions as an output from the decoder (as logits)
+            labels (Tensor): ground truth captions
+
+        Returns:
+            Tensor as an output of the cross entropy with logarithmic softmax. Calculated for the whole batch.
+        """
+
         B, T, C = predictions.shape
         logits = predictions.view(B * T, C)
         targets = labels.view(B * T)
         targets = targets.type(torch.LongTensor).to(self.device)
-        loss = F.cross_entropy(logits, targets)
+
+        ce = nn.CrossEntropyLoss()
+        log_softmax = nn.LogSoftmax(dim=-1)
+        loss = ce(log_softmax(logits), targets)
 
         return loss
+
+    def __calc_masked_accuracy(self, predictions: torch.Tensor, labels: torch.Tensor):
+        pass
 
     def __on_epoch_end(self,
                        current_epoch: int,
                        number_of_epochs: int,
                        optimizer: torch.optim.AdamW,
-                       progress_path: str):
+                       progress_path: str
+                       ) -> None:
+        """
+        Adds log to the writer and saves the current state of the model
+
+        Args:
+            current_epoch (int): number of the current epoch
+            number_of_epochs (int): number of all epochs
+            optimizer (AdamW): optimizer (used to save its state)
+            progress_path (str): path to the folder where the checkpoint is saved
+        """
 
         captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, **self.hyperparams)
         self.writer.add_text("Captioner", captioner.generate(self.sample_image_path, max_size=80))
 
         e = current_epoch
-        if progress_path is not None:
-            path_to_save = progress_path.split('_')[0] + f"_{e + 1}_of_{number_of_epochs}.pt"
-        else:
-            path_to_save = datetime.now().strftime(Trainer.datetime_format) + f"_{e + 1}_of_{number_of_epochs}.pt"
+        path_to_save = progress_path.split('_')[0] + f"_{e + 1}_of_{number_of_epochs}.pt"
 
+        path_to_save = os.path.join(self.checkpoint_path, path_to_save)
         torch.save({
             'epoch': e,
             'model_state_dict': self.decoder.state_dict(),
@@ -143,10 +204,12 @@ class Trainer:
 
         if progress_path is not None:
             print(f"Loading progress from {progress_path}")
-            checkpoint = torch.load(progress_path)
+            checkpoint = torch.load(os.path.join(self.checkpoint_path, progress_path))
             self.hyperparams = checkpoint["hyperparams"]
             self.decoder.load_state_dict(checkpoint["model_state_dict"])
             current_epoch = checkpoint["epoch"]
+        else:
+            progress_path = datetime.now().strftime(Trainer.datetime_format) + "_p"
 
         eval_iterations = self.hyperparams["eval_iterations"]
         eval_per_epoch = self.hyperparams["eval_per_epoch"]
@@ -169,10 +232,10 @@ class Trainer:
 
                 if i % eval_each == 0:
                     losses = self.calculate_losses(eval_iterations)
-                    self.writer.add_scalar("train_loss", losses["train"], e * len(train_dataloader) + i)
-                    self.writer.add_scalar("valid_loss", losses["valid"], e * len(train_dataloader) + i)
                     print(
                         f"Epoch: [{e + 1}/{number_of_epochs}] Step: [{i}/{break_iter}], train loss: {losses['train']:.4f}, val loss: {losses['valid']:.4f}")
+                    self.writer.add_scalar("train_loss", losses["train"], e * len(train_dataloader) + i)
+                    self.writer.add_scalar("valid_loss", losses["valid"], e * len(train_dataloader) + i)
 
                 x1, x2, y = x1.to(self.device), x2.to(self.device), y.to(self.device)
                 logits = self.decoder(x1, x2)
