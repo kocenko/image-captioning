@@ -6,36 +6,98 @@ from feature_extractor import FeatureExtractor
 
 
 class CaptionGenerator:
-    def __init__(self, decoder: Decoder, tokenizer: Tokenizer, feature_extractor: FeatureExtractor, **kwargs):
+    """
+    A class used for generating a caption from file
+
+    Attributes:
+        tokenizer (Tokenizer): custom tokenizer
+        feature_extractor (FeatureExtractor): pre-trained feature extractor
+        decoder (Decoder): decoder used for caption generation
+        device (str): string indicating which device will be used for calculations
+    """
+
+    def __init__(
+            self,
+            decoder: Decoder,
+            tokenizer: Tokenizer,
+            feature_extractor: FeatureExtractor,
+            device: str
+    ) -> None:
+        """
+        Initializes caption generator
+
+        Args:
+            tokenizer (Tokenizer): custom tokenizer
+            feature_extractor (FeatureExtractor): pre-trained feature extractor
+            decoder (Decoder): decoder used for caption generation
+            device (str): string indicating which device will be used for calculations
+        """
+
         self.tokenizer: Tokenizer = tokenizer
         self.feature_extractor: FeatureExtractor = feature_extractor
-        self.config = kwargs
         self.decoder: Decoder = decoder
+        self.device: str = device
 
     def __preprocess_image(self, img_path: str) -> torch.Tensor:
+        """
+        Method used to read and prepare an image from file
+
+        Args:
+            img_path (str): path to the image
+
+        Returns:
+            Tensor of features extracted from the image
+        """
+
         raw_image = self.feature_extractor.get_image_from_file(img_path).unsqueeze(0)
         extracted_features = self.feature_extractor.feed(raw_image).squeeze(0)
+        extracted_features.to(self.device)
+
         return extracted_features
 
+    def __is_generating_done(self, caption: torch.Tensor, max_size: int):
+        """
+        Method for checking if the generating is over
+
+        Args:
+            caption (Tensor): currently generated caption
+            max_size (int): maximal size of the caption
+
+        Returns:
+            True if generating is over, False otherwise
+        """
+
+        size_limit_approached = caption.shape[1] == max_size - 1
+        end_token_generated = caption[:, -1] == self.tokenizer.encode_map[self.tokenizer.end_token]
+
+        return size_limit_approached or end_token_generated
+
     def generate(self, image_path: str, max_size: int) -> str:
-        image = self.__preprocess_image(image_path)
-        start_vector = torch.tensor(self.tokenizer.encode(self.tokenizer.start_token)).unsqueeze(0)
-        start_vector = start_vector[:, :1]
-        image = image.unsqueeze(0)
+        """
+        Method used to generate a caption
+
+        Args:
+            image_path (str): path to the image to generate the caption for
+            max_size (int): maximal size of the caption (excluding beginning and ending tokens)
+
+        Returns:
+            String with the generated caption
+        """
+
         max_size = min(max_size + 2, self.tokenizer.max_length)
 
-        while True:
-            if start_vector.shape[1] == max_size - 1:
-                new_token = torch.tensor(self.tokenizer.encode(self.tokenizer.end_token))[:1].unsqueeze(0)
-            else:
-                logits = self.decoder(image, start_vector)
-                logits = logits[:, -1, :]
-                predictions = F.softmax(logits, dim=-1)
-                new_token = torch.multinomial(predictions, num_samples=1)
+        generated_caption = self.tokenizer.encode(self.tokenizer.start_token, pad=False)
+        generated_caption = torch.tensor(generated_caption, device=self.device).unsqueeze(0)
 
-            start_vector = torch.cat([start_vector, new_token], dim=1)
+        image = self.__preprocess_image(image_path).unsqueeze(0)
 
-            if new_token.detach().numpy() == self.tokenizer.encode_map[self.tokenizer.end_token]:
-                break
+        while not self.__is_generating_done(generated_caption, max_size):
+            logits = self.decoder(image, generated_caption)
+            logits = logits[:, -1, :]  # Fetching the last token of the generated sequence
+            predictions = F.softmax(logits, dim=-1)
+            new_token = torch.multinomial(predictions, num_samples=1)
 
-        return self.tokenizer.decode(start_vector[0, 1:-1].detach().numpy().tolist())
+            generated_caption = torch.cat([generated_caption, new_token], dim=1)
+
+        caption_list = generated_caption[0].tolist()
+        return self.tokenizer.decode(caption_list)
