@@ -17,24 +17,25 @@ with open(file_path, "r") as f:
 
 # Head size should be equal to embeddings_number // heads_number
 hyperparameters = {
-    "batches": 50,
+    "batches": 16,
     "split_lengths": (.7, .2, .1),
     "banned_tokens": [0, 2, 3],
     "embeddings_number": 64,
     "dropout_rate": 0.2,
-    "learning_rate": 10e-4,
-    "epochs": 2,
+    "learning_rate": 1e-4,
+    "epochs": 10,
     "blocks_number": 3,
     "heads_number": 4,
     "head_size": 16,
-    "net_slice_index": 97,
-    "eval_iterations": 200,
-    "eval_per_epoch": 20,
+    "net_slice_index": None,
+    "eval_iterations": 10,
+    "eval_per_epoch": 10,
     "device": "cpu"
 }
 
 fe = FeatureExtractor(device=hyperparameters["device"])
-fe.slice_net(hyperparameters["net_slice_index"])
+if hyperparameters["net_slice_index"] is not None:
+    fe.slice_net(hyperparameters["net_slice_index"])
 tk = Tokenizer(raw_file, folder)
 ds = ImageCaptionDataset(tk, fe, device=hyperparameters["device"])
 wr = SummaryWriter(summary_folder)
@@ -49,5 +50,5 @@ hyperparameters["encode_map"] = tk.encode_map
 
 dec = Decoder(**hyperparameters)
 
-trainer = Trainer(tk, fe, ds, checkpoint_path, sample_image_file, wr, hyperparameters)
+trainer = Trainer(tk, fe, ds, checkpoint_path, sample_image_file, wr, hyperparameters, test=True)
 trainer.train()
