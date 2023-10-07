@@ -94,30 +94,33 @@ class TransformerBlock(nn.Module):
         cross_input_shapes = (embeddings_number, image_channels, image_channels)  # Q, K, V
 
         # Self attention
-        self.layer_normalization_1 = nn.LayerNorm(embeddings_number, device=device)
         self.self_attention = MultiHeadAttention(self_input_shapes, mask_out=True, **kwargs)
+        self.layer_normalization_1 = nn.LayerNorm(embeddings_number, device=device)
 
         # Cross attention
-        self.layer_normalization_2 = nn.LayerNorm(embeddings_number, device=device)
         self.cross_attention = MultiHeadAttention(cross_input_shapes, **kwargs)
+        self.layer_normalization_2 = nn.LayerNorm(embeddings_number, device=device)
 
         # Feed forward
-        self.layer_normalization_3 = nn.LayerNorm(embeddings_number, device=device)
         self.feed_forward = nn.Sequential(nn.Linear(embeddings_number, 4 * embeddings_number, device=device),
                                           nn.ReLU(),
                                           nn.Linear(4 * embeddings_number, embeddings_number, device=device),
                                           nn.Dropout(dropout_rate))
+        self.layer_normalization_3 = nn.LayerNorm(embeddings_number, device=device)
         self.last_attention_scores: Optional[torch.Tensor] = None
 
     def forward(self, image, caption):
-        x = self.layer_normalization_1(caption)
-        x = x + self.self_attention(x, x)
-        x = self.layer_normalization_2(x)
+        # Note: pre-norm formulation can be used
+        x = caption + self.self_attention(caption, caption)
+        x = self.layer_normalization_1(x)
+
         cross_attention = self.cross_attention(x, image)
         self.last_attention_scores = self.cross_attention.last_attention_scores
         x = x + cross_attention
-        x = self.layer_normalization_3(x)
+        x = self.layer_normalization_2(x)
+
         x = x + self.feed_forward(x)
+        x = self.layer_normalization_3(x)
 
         return x
 
