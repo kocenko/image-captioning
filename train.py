@@ -4,7 +4,8 @@ from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, random_split, Subset
 from torch.utils.tensorboard import SummaryWriter
 
 from transformer import Decoder
@@ -30,6 +31,7 @@ class Trainer:
         test_set (Subset): subset of the dataset used for testing
         decoder (Decoder): decoder used for caption generation
         device (str): string indicating which device will be used for calculations
+        test (bool): whether to load only one sample for each subset of the dataset
     """
 
     allowed_optimizations: list[str] = ["grid", "random"]
@@ -67,6 +69,7 @@ class Trainer:
         self.writer: SummaryWriter = writer
         self.hyperparams: dict = hyperparams
         self.device: str = hyperparams["device"]
+        self.test: bool = test
 
         # Splitting dataset into subsets
         if not test:
@@ -74,7 +77,7 @@ class Trainer:
             split_lengths = hyperparams["split_lengths"]
             self.train_set, self.valid_set, self.test_set = random_split(dataset, split_lengths, generator=generator)
         else:
-            self.train_set, self.valid_set, self.test_set = dataset[0], dataset[1], dataset[2]
+            self.train_set, self.valid_set, self.test_set = Subset(dataset, [0]), Subset(dataset, [1]), Subset(dataset, [2])
 
         self.decoder: Decoder = Decoder(**self.hyperparams)
 
@@ -120,7 +123,8 @@ class Trainer:
 
         return timestamp_files[max(timestamp_files, key=timestamp_files.get)]
 
-    def __calc_single_loss(self, predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def __calc_single_loss(predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         """
         Calculates a loss of a single predictions-labels pair
 
@@ -131,20 +135,27 @@ class Trainer:
         Returns:
             Tensor as an output of the cross entropy with logarithmic softmax. Calculated for the whole batch.
         """
+        b, t, c = predictions.shape
+        predictions = predictions.view(b * t, c)
+        labels = labels.view(b * t)
 
-        B, T, C = predictions.shape
-        logits = predictions.view(B * T, C)
-        targets = labels.view(B * T)
-        targets = targets.type(torch.LongTensor).to(self.device)
+        loss = F.cross_entropy(predictions, labels, reduction='none')
 
-        ce = nn.CrossEntropyLoss()
-        log_softmax = nn.LogSoftmax(dim=-1)
-        loss = ce(log_softmax(logits), targets)
+        mask = (labels != 0) & (loss < 1e8)
+        mask = mask.float()
 
+        loss = loss * mask
+        loss = torch.sum(loss) / torch.sum(mask)
         return loss
 
-    def __calc_masked_accuracy(self, predictions: torch.Tensor, labels: torch.Tensor):
-        pass
+    @staticmethod
+    def __calc_masked_accuracy(logits: torch.Tensor, labels: torch.Tensor) -> torch.float32:
+        mask = (labels != 0)
+        predictions = torch.argmax(logits, dim=-1)
+        labels = labels.to(torch.int64)
+        match = (predictions == labels).to(mask.dtype)
+        acc = torch.sum(match * mask) / torch.sum(mask)
+        return acc
 
     def __on_epoch_end(self,
                        current_epoch: int,
@@ -162,7 +173,8 @@ class Trainer:
             progress_path (str): path to the folder where the checkpoint is saved
         """
 
-        captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, **self.hyperparams)
+        device = self.hyperparams["device"]
+        captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, device)
         self.writer.add_text("Captioner", captioner.generate(self.sample_image_path, max_size=80))
 
         e = current_epoch
@@ -177,25 +189,32 @@ class Trainer:
         }, path_to_save)
 
     @torch.no_grad()
-    def calculate_losses(self, iterations: int):
+    def calculate_losses_and_accuracy(self, iterations: int):
         split_type = ["train", "valid"]
         batch_size = self.hyperparams["batches"]
         outcome_losses = {}
+        outcome_accuracy = {}
         self.decoder.eval()
         for t, split in enumerate([self.train_set, self.valid_set]):
             loader = DataLoader(split, batch_size=batch_size, shuffle=True)
             loader = iter(loader)
             losses = torch.zeros(iterations)
+            accuracies = torch.zeros(iterations)
             iterations = min(iterations, len(loader))
             for i in range(iterations):
                 image, caption, label = loader.__next__()
                 image, caption, label = image.to(self.device), caption.to(self.device), label.to(self.device)
                 logits = self.decoder(image, caption).to(self.device)
                 loss = self.__calc_single_loss(logits, label)
+                acc = self.__calc_masked_accuracy(logits, label)
+
                 losses[i] = loss.item()
+                accuracies[i] = acc.item()
+
+            outcome_accuracy[split_type[t]] = accuracies.mean()
             outcome_losses[split_type[t]] = losses.mean()
         self.decoder.train()
-        return outcome_losses
+        return outcome_losses, outcome_accuracy
 
     def train(self):
         progress_path = self.__training_in_progress_path()
@@ -216,31 +235,35 @@ class Trainer:
         number_of_epochs = self.hyperparams["epochs"]
         batch_size = self.hyperparams["batches"]
         lr = self.hyperparams["learning_rate"]
-        break_iter = len(self.train_set) // batch_size
-        eval_each = break_iter // eval_per_epoch
 
-        train_dataloader = DataLoader(self.train_set, batch_size=batch_size, shuffle=True, drop_last=True)
+        train_dataloader = DataLoader(self.train_set, batch_size=batch_size, shuffle=True, drop_last=(not self.test))
         optimizer = torch.optim.AdamW(self.decoder.parameters(), lr=lr)
 
         if checkpoint is not None:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
+        all_iters = len(train_dataloader)
+        eval_each = all_iters // min(all_iters, eval_per_epoch)
+
         for e in range(current_epoch, number_of_epochs):
             for i, (x1, x2, y) in enumerate(train_dataloader):
-                if i == break_iter:
-                    break
-
                 if i % eval_each == 0:
-                    losses = self.calculate_losses(eval_iterations)
-                    print(
-                        f"Epoch: [{e + 1}/{number_of_epochs}] Step: [{i}/{break_iter}], train loss: {losses['train']:.4f}, val loss: {losses['valid']:.4f}")
+                    losses, accuracy = self.calculate_losses_and_accuracy(eval_iterations)
+
+                    print(f"Epoch: [{e + 1}/{number_of_epochs}], "
+                          f"Step: [{i}/{all_iters}], "
+                          f"Train loss: {losses['train']:.4f}, "
+                          f"Val loss: {losses['valid']:.4f}, "
+                          f"Train acc: {accuracy['train']:.4f}, "
+                          f"Val acc: {accuracy['valid']:.4f}")
+
                     self.writer.add_scalar("train_loss", losses["train"], e * len(train_dataloader) + i)
                     self.writer.add_scalar("valid_loss", losses["valid"], e * len(train_dataloader) + i)
 
                 x1, x2, y = x1.to(self.device), x2.to(self.device), y.to(self.device)
+                optimizer.zero_grad(set_to_none=True)
                 logits = self.decoder(x1, x2)
                 loss = self.__calc_single_loss(logits, y)
-                optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 optimizer.step()
 
