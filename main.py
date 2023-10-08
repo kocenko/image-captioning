@@ -47,8 +47,5 @@ hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_
 hyperparameters["word_count"] = tk.counter
 hyperparameters["encode_map"] = tk.encode_map
 
-
-dec = Decoder(**hyperparameters)
-
-trainer = Trainer(tk, fe, ds, checkpoint_path, sample_image_file, wr, hyperparameters, test=True)
+trainer = Trainer(tk, fe, ds, checkpoint_path, sample_image_file, wr, hyperparameters)
 trainer.train()
