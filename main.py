@@ -17,16 +17,16 @@ with open(file_path, "r") as f:
 
 # Head size should be equal to embeddings_number // heads_number
 hyperparameters = {
-    "batches": 16,
+    "batches": 32,
     "split_lengths": (.7, .2, .1),
     "banned_tokens": [0, 1, 3],
-    "embeddings_number": 64,
-    "dropout_rate": 0.2,
+    "embeddings_number": 256,
+    "dropout_rate": 0.1,
     "learning_rate": 1e-4,
-    "epochs": 10,
-    "blocks_number": 3,
-    "heads_number": 4,
-    "head_size": 16,
+    "epochs": 20,
+    "blocks_number": 1,
+    "heads_number": 1,
+    "head_size": 256,
     "net_slice_index": None,
     "eval_iterations": 10,
     "eval_per_epoch": 10,
