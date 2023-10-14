@@ -128,6 +128,7 @@ class Tokenizer:
         """
 
         self.word_list = self.word_list[:vocab_size]
+        self.counter = Counter(dict(self.counter.most_common(vocab_size)))
 
     def __create_mappings(self) -> None:
         """
