@@ -36,7 +36,7 @@ hyperparameters = {
 fe = FeatureExtractor(device=hyperparameters["device"])
 if hyperparameters["net_slice_index"] is not None:
     fe.slice_net(hyperparameters["net_slice_index"])
-tk = Tokenizer(raw_file, folder)
+tk = Tokenizer(raw_file, folder, reduce=True)
 ds = ImageCaptionDataset(tk, fe, device=hyperparameters["device"])
 wr = SummaryWriter(summary_folder)
 

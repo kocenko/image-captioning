@@ -95,7 +95,7 @@ class Tokenizer:
 
         return token_list + (self.max_length - len(token_list)) * [self.encode_map[Tokenizer.empty_token]]
 
-    def __extract_captions(self):
+    def __extract_captions(self) -> None:
         """
         Method used to parse the input text
         """
@@ -103,7 +103,6 @@ class Tokenizer:
         if len(self.captions) > 0:
             raise AttributeError("Captions have been already extracted from the raw text.")
 
-        word_set = set()
         for line in self.raw_text.splitlines():
             raw_caption = line.split('\t', 1)
             if len(raw_caption) < 2:
@@ -115,18 +114,22 @@ class Tokenizer:
             if self.standardize:
                 caption = self.standardize(caption)
 
-            captions_set = set(caption.split())
             self.counter.update(caption.split())
-
-            word_set = word_set | captions_set
             self.captions.append(caption)
 
-        self.word_list = sorted(word_set)
+        self.word_list = [word for word, count in sorted(self.counter.items(), key=lambda x: x[1], reverse=True)]
 
-    def __reduce_vocabulary(self):
-        raise NotImplementedError
+    def __reduce_vocabulary(self, vocab_size: int = 4996) -> None:
+        """
+        Reduces the vocabulary to the given size
 
-    def __create_mappings(self):
+        Args:
+            vocab_size (int): size of the vocabulary list on output (excluding base tokens)
+        """
+
+        self.word_list = self.word_list[:vocab_size]
+
+    def __create_mappings(self) -> None:
         """
         Method used to construct mappings based on the current word set
         """
@@ -188,7 +191,7 @@ if __name__ == '__main__':
     with open(file_path, "r") as f:
         raw_file = f.read()
 
-    tokenizer = Tokenizer(raw_file, folder)
+    tokenizer = Tokenizer(raw_file, folder, reduce=True)
 
     print(tokenizer.encode('<START> I am going to work <END>', pad=False))
     print(tokenizer.decode([1, 10, 20, 4, 28, 2]))
