@@ -19,7 +19,7 @@ with open(file_path, "r") as f:
 hyperparameters = {
     "batches": 16,
     "split_lengths": (.7, .2, .1),
-    "banned_tokens": [0, 2, 3],
+    "banned_tokens": [0, 1, 3],
     "embeddings_number": 64,
     "dropout_rate": 0.2,
     "learning_rate": 1e-4,
