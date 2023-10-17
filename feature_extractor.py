@@ -1,13 +1,13 @@
 import os.path
 import random
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Any
 
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-from torch import nn
 from torchvision.io import read_image
 from torchvision.models import MNASNet, mnasnet0_75, MNASNet0_75_Weights
+from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
 import onnx
 
 
@@ -17,12 +17,9 @@ class FeatureExtractor:
 
     Attributes:
         model (Any): pretrained model used for feature extraction
-        mapping (dict[int, list[int]]): dict used to track which modules should be unpacked to get to the layer.
-                                        The key is the layer's number and the value is the list of indexes of
-                                        the children modules which contain the layer
-        available_layer_index (int): a value used during net mapping. It depicts the next available layer number.
         image_transform (Any): image transformator associated with the pretrained model. Used to convert raw images.
         device (str): name of the device on which the calculations are performed
+        last_layer_name (str): name of the last layer
     """
 
     def __init__(self, model_name: str = "mnasnet0_75", device: str = "cuda") -> None:
@@ -34,111 +31,62 @@ class FeatureExtractor:
             device (str): device (str): name of the device on which the calculations are performed
         """
 
+        self.device: Any = torch.device(device)
         self.model: Any = None
-        self.mapping: Dict[int, List[int]] = {}
-        self.available_layer_index: int = 0
         self.image_transform: Any = None
-        self.device: str = device
+        self.last_layer_name: str = ""
 
         if model_name == "mnasnet0_75":
-            weights = MNASNet0_75_Weights.DEFAULT
-            self.model: MNASNet = mnasnet0_75(weights=weights)
+            self.model: MNASNet = mnasnet0_75(weights=MNASNet0_75_Weights.IMAGENET1K_V1)
             self.model.to(self.device)
-            self.model.train(False)
 
-            self.model = self.model.layers
-            self.image_transform = weights.transforms(antialias=True)
-            self.generate_mapping()
+            for param in self.model.parameters():
+                param.requires_grad = False
+
+            self.image_transform = MNASNet0_75_Weights.IMAGENET1K_V1.transforms(antialias=True)
+            self.last_layer_name = self.list_all_layers()[-1]
         else:
             raise NotImplementedError
 
-    def unravel_net(self, group: nn.Sequential, path: List[int] = None) -> None:
+    def list_all_layers(self, display: bool = False) -> List[str]:
         """
-        A method which (as a recursion block) performs the network mapping
+        A method used to list all the layers in the model
 
         Args:
-            group (nn.Sequential): a module, group or any type of container containing other layers
-            path (list[int]): path of indices leading to the group
-        """
-
-        if path is None:
-            path = []
-
-        for layer_number, layer in enumerate(list(group.children())):
-            current_path = path + [layer_number]
-            self.mapping[self.available_layer_index] = current_path
-
-            # If Sequential or InverseResidual
-            if len(list(layer.children())) > 0:
-                self.unravel_net(layer, current_path)
-            else:
-                self.available_layer_index = self.available_layer_index + 1
-
-    def generate_mapping(self, force: bool = False) -> None:
-        """
-        A method performing net mapping. Invokes method unraveling one group
-
-        Args:
-            force (bool): whether to perform mapping when mapping has been already performed
-        """
-
-        if not bool(self.mapping) or (bool(self.mapping) and force):
-            self.available_layer_index = 0
-            self.unravel_net(self.model)
-        else:
-            print("Mapping was already performed. Change 'force' parameter to True.")
-
-    def get_layer(self, layer_index: int) -> Any:
-        """
-        A method used to extract single layer from the net
-
-        Args:
-            layer_index (int): number of the layer to extract (counting from the input to the output)
+            display (bool): should the nodes be printed to the console
 
         Returns:
-            Layer of the given index
-
-        Raises:
-            AttributeError: when the mapping has not been performed yet
-            ValueError: when the layer index is out of range
+            A list of strings with layers' names
         """
+        nodes, _ = get_graph_node_names(self.model)
 
-        if not bool(self.mapping):
-            raise AttributeError("To get layer you need to generate mapping first using 'generate mapping' method.")
+        if display:
+            print(*[node for node in nodes], sep="\n")
 
-        if layer_index < 0 or layer_index >= self.available_layer_index:
-            raise ValueError(f"Method takes an argument with value between {0} and {self.available_layer_index}")
+        return nodes
 
-        layer = self.model
-        for index in self.mapping[layer_index]:
-            layer = list(layer.children())[index]
-
-        return layer
-
-    def slice_net(self, layer_index: int):
+    def slice_net(self, layer_name: str, overwrite_model: bool = False) -> Any:
         """
         A method extracting from the model the part of the model up until the layer with the given index (including)
 
         Args:
-            layer_index(int): index of the layer after which the cutting is performed
+            layer_name (str): name of the layer after which the cutting is performed
+            overwrite_model (bool): whether to overwrite the current model after slicing
 
         Returns:
-            Extracted layers and blocks contained in the Sequential module
+            Feature extractor module after slicing
         """
 
-        if not bool(self.mapping):
-            raise AttributeError("To slice net you need to generate mapping first using 'generate mapping' method.")
+        if layer_name not in self.list_all_layers():
+            raise ValueError(f"Could not find layer of name {layer_name}. Be sure to use one of the names of the nodes")
 
-        if layer_index < 0 or layer_index >= self.available_layer_index:
-            raise ValueError(f"Method takes an argument with value between {0} and {self.available_layer_index}")
+        feature_extractor = create_feature_extractor(self.model, [layer_name])
 
-        subnet = [self.model]
-        indices_list = self.mapping[layer_index]
-        for index in indices_list:
-            subnet = subnet[:-1] + list(subnet[-1].children())[:index + 1]
+        if overwrite_model:
+            self.model = feature_extractor
+            self.last_layer_name = layer_name
 
-        self.model = nn.Sequential(*subnet)
-        self.generate_mapping(True)
+        return feature_extractor
 
     def get_image_from_file(self, path_to_image: str) -> Any:
         """
@@ -169,7 +117,7 @@ class FeatureExtractor:
 
         if self.model is None:
             raise AttributeError("Cannot feed model if model is None")
-        return self.model(batch).to(dtype=torch.float)
+        return self.model(batch)[self.last_layer_name].to(dtype=torch.float)
 
     def save_feature_maps(self, path_to_image: str, path_to_folder: str, order_by_mean: bool = True) -> None:
         """
@@ -185,7 +133,7 @@ class FeatureExtractor:
             img = self.get_image_from_file(path_to_image)
             features = self.feed(img).detach().numpy()  # Only first batch
 
-            file_name = f"feature_map_layer_{self.available_layer_index-1}"
+            file_name = "feature_map_layer"
             number_of_zeroes = int(np.ceil(len(features) ** .1))  # For the file name
             map_list = [i for i in range(features.shape[0])]
 
@@ -215,7 +163,7 @@ class FeatureExtractor:
             dummy_file_path (str): path of the file used to determine the shapes and connections between layers
         """
         batch = self.get_image_from_file(dummy_file_path).unsqueeze(0)
-        export_path = export_path + f"_sliced_at_{self.available_layer_index-1}.onnx"
+        export_path = export_path + "_sliced.onnx"
 
         add_shape_info = False
         if not os.path.exists(export_path):
@@ -279,12 +227,12 @@ class FeatureExtractor:
         except Exception as e:
             print(f"Could not plot features due to: {e}")
 
-    def plot_filters(self, layer_idx: int, how_many: int, normalize: bool = True, seed: int = None) -> None:
+    def plot_filters(self, layer_name: str, how_many: int, normalize: bool = True, seed: int = None) -> None:
         """
         A method used for plotting the filter shapes and weights of the given layer
 
         Args:
-            layer_idx (int): index of the layer to visualize
+            layer_name (str): name of the layer to visualize based on the nodes name
             how_many (int): number of filters to visualize
             normalize (bool): whether the weights should be normalized before visualization
             seed (int): passed to the random generator. Used for reproducibility
@@ -294,7 +242,7 @@ class FeatureExtractor:
         """
 
         try:
-            filters = self.get_layer(layer_idx).weight.detach().numpy()
+            filters = self.slice_net(layer_name)[...: -1].weight.detach().numpy()
             c_out, c_in, h, w = filters.shape  # (Channels_out, Channels_in/Groups, K_height, K_width)
 
             if how_many > c_out:
@@ -335,7 +283,7 @@ if __name__ == '__main__':
     folder_path = "./feature_maps/"
 
     fe = FeatureExtractor(device="cpu")
-    fe.slice_net(0)
+    fe.slice_net("layers.0", overwrite_model=True)
     # fe.save_feature_maps(image_path, folder_path)
     image = fe.get_image_from_file(image_path).unsqueeze(0)
     output = fe.feed(image)
