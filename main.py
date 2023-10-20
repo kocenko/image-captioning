@@ -1,8 +1,7 @@
 from tokenizer import Tokenizer
 from feature_extractor import FeatureExtractor
-from dataset import ImageCaptionDataset
+from dataset import Sharder
 from train import Trainer
-from transformer import Decoder
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -34,10 +33,10 @@ hyperparameters = {
 }
 
 fe = FeatureExtractor(device=hyperparameters["device"])
-if hyperparameters["net_slice_index"] is not None:
+if hyperparameters["net_slice_index"]:
     fe.slice_net(hyperparameters["net_slice_index"])
 tk = Tokenizer(raw_file, folder, reduce=True)
-ds = ImageCaptionDataset(tk, fe, device=hyperparameters["device"])
+sh = Sharder(tk, fe, device=hyperparameters["device"])
 wr = SummaryWriter(summary_folder)
 
 # Updating dependent hyperparameters
@@ -47,5 +46,5 @@ hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_
 hyperparameters["word_count"] = tk.counter
 hyperparameters["encode_map"] = tk.encode_map
 
-trainer = Trainer(tk, fe, ds, checkpoint_path, sample_image_file, wr, hyperparameters)
+trainer = Trainer(tk, fe, sh, checkpoint_path, sample_image_file, wr, hyperparameters)
 trainer.train()

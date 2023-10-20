@@ -3,14 +3,12 @@ from datetime import datetime
 from typing import Dict, Optional, Tuple
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, random_split, Subset
 from torch.utils.tensorboard import SummaryWriter
 
 from transformer import Decoder
 from caption_generator import CaptionGenerator
-from dataset import ImageCaptionDataset
+from dataset import Sharder, custom_dataloader
 from feature_extractor import FeatureExtractor
 from tokenizer import Tokenizer
 
@@ -26,9 +24,6 @@ class Trainer:
         sample_image_path (str): path to the file, which is used to generate captions
         writer (SummaryWriter): log writer object
         hyperparams (dict): dict of parameters used in the training
-        train_set (Subset): subset of the dataset used for training
-        valid_set (Subset): subset of the dataset used for validation
-        test_set (Subset): subset of the dataset used for testing
         decoder (Decoder): decoder used for caption generation
         device (str): string indicating which device will be used for calculations
         test (bool): whether to load only one sample for each subset of the dataset
@@ -41,7 +36,7 @@ class Trainer:
             self,
             tokenizer: Tokenizer,
             feature_extractor: FeatureExtractor,
-            dataset: ImageCaptionDataset,
+            sharder: Sharder,
             checkpoint_path: str,
             sample_image_path: str,
             writer: SummaryWriter,
@@ -54,7 +49,7 @@ class Trainer:
         Args:
             tokenizer (Tokenizer): custom tokenizer
             feature_extractor (FeatureExtractor): pre-trained feature extractor
-            dataset (ImageCaptionDataset): custom dataset
+            sharder (Sharder): custom dataset sharder
             checkpoint_path (str): path of the folder where checkpoint files are saved
             sample_image_path (str): path to the file, which is used to generate captions
             writer (SummaryWriter): log writer object
@@ -64,21 +59,13 @@ class Trainer:
 
         self.tokenizer: Tokenizer = tokenizer
         self.feature_extractor: FeatureExtractor = feature_extractor
+        self.sharder: Sharder = sharder
         self.checkpoint_path: str = checkpoint_path
         self.sample_image_path: str = sample_image_path
         self.writer: SummaryWriter = writer
         self.hyperparams: dict = hyperparams
         self.device: str = hyperparams["device"]
         self.test: bool = test
-
-        # Splitting dataset into subsets
-        if not test:
-            generator = torch.Generator().manual_seed(42)
-            split_lengths = hyperparams["split_lengths"]
-            self.train_set, self.valid_set, self.test_set = random_split(dataset, split_lengths, generator=generator)
-        else:
-            self.train_set, self.valid_set, self.test_set = Subset(dataset, [0]), Subset(dataset, [1]), Subset(dataset, [2])
-
         self.decoder: Decoder = Decoder(**self.hyperparams)
 
     def __training_in_progress_path(self) -> Optional[str]:
@@ -195,8 +182,8 @@ class Trainer:
         outcome_losses = {}
         outcome_accuracy = {}
         self.decoder.eval()
-        for t, split in enumerate([self.train_set, self.valid_set]):
-            loader = DataLoader(split, batch_size=batch_size, shuffle=True)
+        for t, split in enumerate(['train', 'valid']):
+            loader = custom_dataloader(split, self.sharder, batch_size=batch_size)
             loader = iter(loader)
             losses = torch.zeros(iterations)
             accuracies = torch.zeros(iterations)
@@ -236,7 +223,7 @@ class Trainer:
         batch_size = self.hyperparams["batches"]
         lr = self.hyperparams["learning_rate"]
 
-        train_dataloader = DataLoader(self.train_set, batch_size=batch_size, shuffle=True, drop_last=(not self.test))
+        train_dataloader = custom_dataloader('train', self.sharder, batch_size=batch_size)
         optimizer = torch.optim.AdamW(self.decoder.parameters(), lr=lr)
 
         if checkpoint is not None:
