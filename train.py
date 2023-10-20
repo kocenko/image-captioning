@@ -226,10 +226,10 @@ class Trainer:
         train_dataloader = custom_dataloader('train', self.sharder, batch_size=batch_size)
         optimizer = torch.optim.AdamW(self.decoder.parameters(), lr=lr)
 
-        if checkpoint is not None:
+        if checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        all_iters = len(train_dataloader)
+        all_iters = sum([len(l) for l in self.sharder.split_indexes['train']])
         eval_each = all_iters // min(all_iters, eval_per_epoch)
 
         for e in range(current_epoch, number_of_epochs):

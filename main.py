@@ -34,7 +34,7 @@ hyperparameters = {
 
 fe = FeatureExtractor(device=hyperparameters["device"])
 if hyperparameters["net_slice_index"]:
-    fe.slice_net(hyperparameters["net_slice_index"])
+    fe.slice_net(hyperparameters["net_slice_index"], overwrite_model=True)
 tk = Tokenizer(raw_file, folder, reduce=True)
 sh = Sharder(tk, fe, device=hyperparameters["device"])
 wr = SummaryWriter(summary_folder)
