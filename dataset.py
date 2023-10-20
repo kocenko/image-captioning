@@ -1,6 +1,7 @@
 import os.path
 import random
 import math
+import gc
 from typing import Any
 
 from tokenizer import Tokenizer
@@ -15,14 +16,16 @@ class Sharder:
             self,
             tokenizer: Tokenizer,
             extractor: FeatureExtractor,
-            shard_size: int = 2000,
+            shard_size: int,
+            batch_size: int,
             split_ratio: tuple[int, int, int] = (.7, .2, .1),
-            device: str = "cuda"
+            device: str = "cpu"
     ) -> None:
 
         self.tokenizer = tokenizer
         self.extractor = extractor
         self.shard_size = shard_size
+        self.batch_size = batch_size
         self.device: Any = torch.device(device)
         self.split_indexes = {}
 
@@ -33,6 +36,18 @@ class Sharder:
         for split in self.shard_folders:
             if not os.path.exists(split):
                 os.makedirs(split)
+
+    @staticmethod
+    def __split_evenly(array: list[Any], divisor: int) -> list[Any]:
+        chunks_num = math.ceil(len(array) / divisor)
+
+        chunks_list = []
+        for chunk_num in range(chunks_num):
+            begin_idx = chunk_num * divisor
+            end_idx = chunk_num * divisor + divisor
+            chunks_list.append(array[begin_idx: end_idx])
+
+        return chunks_list
 
     def __set_split_indexes(self, split_ratio: tuple[int, int, int]) -> None:
         train_split, valid_split, test_split = split_ratio
@@ -46,15 +61,7 @@ class Sharder:
         }
 
         for split_name, index_array in self.split_indexes.items():
-            shards_num = math.ceil(len(index_array) / self.shard_size)
-
-            shard_split_list = []
-            for shard_id in range(shards_num):
-                begin_idx = shard_id * self.shard_size
-                end_idx = shard_id * self.shard_size + self.shard_size
-                shard_split_list.append(index_array[begin_idx: end_idx])
-
-            self.split_indexes[split_name] = shard_split_list
+            self.split_indexes[split_name] = self.__split_evenly(index_array, self.shard_size)
 
     def __empty_directory(self) -> None:
         """
@@ -73,8 +80,11 @@ class Sharder:
 
     def __load_and_transform_image(self, paths: list[str]) -> torch.Tensor:
         raw_images = [self.extractor.get_image_from_file(path).to(self.device) for path in paths]
-        stacked_images = torch.stack(raw_images, dim=0)
-        return self.extractor.feed(stacked_images)
+        transformed = [
+            self.extractor.feed(torch.stack(batch, dim=0)) for batch in self.__split_evenly(raw_images, self.batch_size)
+        ]
+        stacked_images = torch.cat(transformed, dim=0)
+        return stacked_images
 
     def save_shards(self, override: bool = False) -> None:
         """
@@ -96,6 +106,8 @@ class Sharder:
                 cap = self.__load_and_transform_caption(captions)
 
                 torch.save((img, cap), os.path.join(self.shard_folders[i], f"{key}_shard_{j}.pt"))
+                gc.collect()
+                print(f"Saved: {key}_shard_{j}")
 
 
 class ImageCaptionDataset(Dataset):
@@ -152,7 +164,7 @@ def custom_dataloader(split_name: str, sharder: Sharder, batch_size: int):
     shard_files = [file for file in os.listdir(shard_folder)]
 
     for shard_file in shard_files:
-        dataset = ImageCaptionDataset(shard_file)
+        dataset = ImageCaptionDataset(os.path.join(shard_folder, shard_file))
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         for (img, caption, label) in dataloader:
             yield img, caption, label
@@ -168,6 +180,5 @@ if __name__ == "__main__":
     fe = FeatureExtractor(device="cpu")
     fe.slice_net("layers.15", overwrite_model=True)
     tk = Tokenizer(raw_file, folder)
-    shds = Sharder(tk, fe, device="cpu")
-    # shds.save_shards()
-    # dl = DataLoader(ds, batch_size=50, shuffle=True)
+    sh = Sharder(tk, fe, batch_size=32, shard_size=2000)
+    sh.save_shards()
