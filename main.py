@@ -26,7 +26,7 @@ hyperparameters = {
     "blocks_number": 1,
     "heads_number": 1,
     "head_size": 256,
-    "net_slice_index": None,
+    "net_slice_index": "layers.15",
     "eval_iterations": 10,
     "eval_per_epoch": 10,
     "device": "cpu"
