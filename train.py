@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from itertools import islice
 from typing import Dict, Optional, Tuple
 
 import torch
@@ -176,31 +177,28 @@ class Trainer:
         }, path_to_save)
 
     @torch.no_grad()
-    def calculate_losses_and_accuracy(self, iterations: int):
-        split_type = ["train", "valid"]
-        batch_size = self.hyperparams["batches"]
+    def calculate_losses_and_accuracy(self, iterations: int, batch_size: int):
         outcome_losses = {}
         outcome_accuracy = {}
+
         self.decoder.eval()
-        for t, split in enumerate(['train', 'valid']):
-            loader = custom_dataloader(split, self.sharder, batch_size=batch_size)
-            loader = iter(loader)
+        for t, split in enumerate(["train", "valid"]):
             losses = torch.zeros(iterations)
             accuracies = torch.zeros(iterations)
-            iterations = min(iterations, len(loader))
-            for i in range(iterations):
-                image, caption, label = loader.__next__()
+            loader = custom_dataloader(split, self.sharder, batch_size=batch_size)
+
+            for i, (image, caption, label) in enumerate(islice(loader, iterations)):
                 image, caption, label = image.to(self.device), caption.to(self.device), label.to(self.device)
                 logits = self.decoder(image, caption).to(self.device)
                 loss = self.__calc_single_loss(logits, label)
                 acc = self.__calc_masked_accuracy(logits, label)
-
                 losses[i] = loss.item()
                 accuracies[i] = acc.item()
 
-            outcome_accuracy[split_type[t]] = accuracies.mean()
-            outcome_losses[split_type[t]] = losses.mean()
+            outcome_accuracy[split] = accuracies.mean()
+            outcome_losses[split] = losses.mean()
         self.decoder.train()
+
         return outcome_losses, outcome_accuracy
 
     def train(self):
@@ -208,7 +206,7 @@ class Trainer:
         checkpoint = None
         current_epoch = 0
 
-        if progress_path is not None:
+        if progress_path:
             print(f"Loading progress from {progress_path}")
             checkpoint = torch.load(os.path.join(self.checkpoint_path, progress_path))
             self.hyperparams = checkpoint["hyperparams"]
@@ -223,19 +221,19 @@ class Trainer:
         batch_size = self.hyperparams["batches"]
         lr = self.hyperparams["learning_rate"]
 
-        train_dataloader = custom_dataloader('train', self.sharder, batch_size=batch_size)
         optimizer = torch.optim.AdamW(self.decoder.parameters(), lr=lr)
 
         if checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        all_iters = sum([len(l) for l in self.sharder.split_indexes['train']])
+        all_iters = sum([len(l) for l in self.sharder.split_indexes['train']]) // batch_size
         eval_each = all_iters // min(all_iters, eval_per_epoch)
 
         for e in range(current_epoch, number_of_epochs):
+            train_dataloader = custom_dataloader('train', self.sharder, batch_size=batch_size)
             for i, (x1, x2, y) in enumerate(train_dataloader):
                 if i % eval_each == 0:
-                    losses, accuracy = self.calculate_losses_and_accuracy(eval_iterations)
+                    losses, accuracy = self.calculate_losses_and_accuracy(eval_iterations, batch_size)
 
                     print(f"Epoch: [{e + 1}/{number_of_epochs}], "
                           f"Step: [{i}/{all_iters}], "
@@ -244,8 +242,8 @@ class Trainer:
                           f"Train acc: {accuracy['train']:.4f}, "
                           f"Val acc: {accuracy['valid']:.4f}")
 
-                    self.writer.add_scalar("train_loss", losses["train"], e * len(train_dataloader) + i)
-                    self.writer.add_scalar("valid_loss", losses["valid"], e * len(train_dataloader) + i)
+                    self.writer.add_scalar("train_loss", losses["train"], e * all_iters + i)
+                    self.writer.add_scalar("valid_loss", losses["valid"], e * all_iters + i)
 
                 x1, x2, y = x1.to(self.device), x2.to(self.device), y.to(self.device)
                 optimizer.zero_grad(set_to_none=True)

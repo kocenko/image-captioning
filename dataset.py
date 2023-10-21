@@ -120,7 +120,7 @@ class ImageCaptionDataset(Dataset):
         labels (torch.Tensor): tensor with expected captions (tokenized)
     """
 
-    def __init__(self, shard_path: str) -> None:
+    def __init__(self, shard_path: str, device: Any) -> None:
         """
         Dataset initialization
 
@@ -128,7 +128,7 @@ class ImageCaptionDataset(Dataset):
             shard_path (str): path to the shard file
         """
 
-        img, cap = torch.load(shard_path)
+        img, cap = torch.load(shard_path, map_location=device)
         self.image_features = img
         self.captions = cap[..., :-1]
         self.labels = cap[..., 1:]
@@ -164,7 +164,7 @@ def custom_dataloader(split_name: str, sharder: Sharder, batch_size: int):
     shard_files = [file for file in os.listdir(shard_folder)]
 
     for shard_file in shard_files:
-        dataset = ImageCaptionDataset(os.path.join(shard_folder, shard_file))
+        dataset = ImageCaptionDataset(os.path.join(shard_folder, shard_file), sharder.device)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         for (img, caption, label) in dataloader:
             yield img, caption, label
