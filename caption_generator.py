@@ -101,3 +101,26 @@ class CaptionGenerator:
 
         caption_list = generated_caption[0].tolist()
         return self.tokenizer.decode(caption_list)
+
+
+if __name__ == '__main__':
+    checkpoint = torch.load("../trained/24-10-2023/checkpoint/2023-10-24 14-46-29_45_of_100.pt", map_location=torch.device("cpu"))
+    hyperparams = checkpoint["hyperparams"]
+    hyperparams["device"] = "cpu"
+
+    file_path = 'dataset/captions.txt'
+    folder = 'dataset/images/'
+    sample_image_file = 'imgs/rooster.jpg'
+
+    with open(file_path, "r") as f:
+        raw_file = f.read()
+    fe = FeatureExtractor(model_name="mobilenet", device=hyperparams["device"])
+    if hyperparams["net_slice_index"]:
+        fe.slice_net(hyperparams["net_slice_index"], overwrite_model=True)
+    tk = Tokenizer(raw_file, folder, reduce=True)
+
+    model = Decoder(**hyperparams)
+    model.load_state_dict(checkpoint["model_state_dict"])
+
+    gener = CaptionGenerator(model, tk, fe, device=hyperparams["device"])
+    print(gener.generate(sample_image_file, 20))
