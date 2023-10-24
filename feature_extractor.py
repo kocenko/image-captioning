@@ -3,19 +3,19 @@ import random
 from typing import Tuple, List, Any
 
 import numpy as np
+import onnx
 import matplotlib.pyplot as plt
 import torch
 from torchvision.io import read_image
+from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
 from torchvision.models import (
-    MNASNet,
     mnasnet0_75,
     MNASNet0_75_Weights,
-    MobileNetV3,
     mobilenet_v3_large,
     MobileNet_V3_Large_Weights,
+    vgg16_bn,
+    VGG16_BN_Weights,
 )
-from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
-import onnx
 
 
 class FeatureExtractor:
@@ -23,13 +23,29 @@ class FeatureExtractor:
     Class used to define a feature extractor by using pretrained model and visualize its outcomes.
 
     Attributes:
+        pretrained_models (dict): dict with pretrained models' constructors and weights
         model (Any): pretrained model used for feature extraction
-        image_transform (Any): image transformator associated with the pretrained model. Used to convert raw images.
+        image_transform (Any): image transformator associated with the pretrained model. Used to transform raw images.
         device (str): name of the device on which the calculations are performed
         last_layer_name (str): name of the last layer
     """
 
-    def __init__(self, model_name: str = "mnasnet0_75", device: str = "cuda") -> None:
+    pretrained_models = {
+        "mnasnet0_75": {
+            "model": mnasnet0_75,
+            "weights": MNASNet0_75_Weights.IMAGENET1K_V1,
+        },
+        "mobilenet": {
+            "model": mobilenet_v3_large,
+            "weights": MobileNet_V3_Large_Weights.IMAGENET1K_V1,
+        },
+        "vgg": {
+            "model": vgg16_bn,
+            "weights": VGG16_BN_Weights.IMAGENET1K_V1,
+        }
+    }
+
+    def __init__(self, model_name: str, device: str = "cuda") -> None:
         """
         Initializes feature extractor's attributes
 
@@ -39,31 +55,21 @@ class FeatureExtractor:
         """
 
         self.device: Any = torch.device(device)
-        self.model: Any = None
         self.image_transform: Any = None
         self.last_layer_name: str = ""
 
-        if model_name == "mnasnet0_75":
-            self.model: MNASNet = mnasnet0_75(weights=MNASNet0_75_Weights.IMAGENET1K_V1)
-            self.model.to(self.device)
+        if model_name not in FeatureExtractor.pretrained_models:
+            raise NotImplementedError(
+                f"Given model name was not recognized. "
+                f"It should be one of the following: {FeatureExtractor.pretrained_models.keys()}"
+            )
 
-            for param in self.model.parameters():
-                param.requires_grad = False
-
-            self.image_transform = MNASNet0_75_Weights.IMAGENET1K_V1.transforms(antialias=True)
-            self.last_layer_name = self.list_all_layers()[-1]
-
-        elif model_name == "mobilenet":
-            self.model: MobileNetV3 = mobilenet_v3_large(weights=MobileNet_V3_Large_Weights.IMAGENET1K_V2)
-            self.model.to(self.device)
-
-            for param in self.model.parameters():
-                param.requires_grad = False
-
-            self.image_transform = MobileNet_V3_Large_Weights.IMAGENET1K_V2.transforms(antialias=True)
-            self.last_layer_name = self.list_all_layers()[-1]
-        else:
-            raise NotImplementedError
+        model_config = FeatureExtractor.pretrained_models[model_name]
+        self.model = model_config["model"](weights=model_config["weights"])
+        self.image_transform = model_config["weights"].transforms(antialias=True)
+        self.model.to(self.device)
+        self.model.eval()
+        self.last_layer_name = self.list_all_layers()[-1]
 
     def list_all_layers(self, display: bool = False) -> List[str]:
         """
@@ -136,32 +142,25 @@ class FeatureExtractor:
             raise AttributeError("Cannot feed model if model is None")
         return self.model(batch)[self.last_layer_name].to(dtype=torch.float)
 
-    def save_feature_maps(self, path_to_image: str, path_to_folder: str, order_by_mean: bool = True) -> None:
+    def save_feature_maps(self, path_to_image: str, path_to_folder: str, max_figs: int = 20) -> None:
         """
         Method used to save feature maps of the current net to the folder
 
         Args:
             path_to_image (str): path to the sample file used for visualization
             path_to_folder (str): path to the folder where the feature maps will be saved
-            order_by_mean (bool): whether the images should be ordered by their mean intensity
+            max_figs (int): a number of figures to save
         """
 
         try:
-            img = self.get_image_from_file(path_to_image)
-            features = self.feed(img).detach().numpy()  # Only first batch
+            img = self.get_image_from_file(path_to_image).unsqueeze(0)
+            features = self.feed(img).squeeze().detach().numpy()  # Only first batch
 
-            file_name = "feature_map_layer"
             number_of_zeroes = int(np.ceil(len(features) ** .1))  # For the file name
-            map_list = [i for i in range(features.shape[0])]
-
-            if order_by_mean:
-                mean_list = [(map_list[index], np.mean(single_map)) for index, single_map in enumerate(features)]
-                mean_list.sort(key=lambda x: x[1], reverse=True)
-                map_list = [i[0] for i in mean_list]
-                file_name += "_sorted_"
+            map_list = [i for i in range(min(features.shape[0], max_figs))]
 
             for idx in map_list:
-                new_path = path_to_folder + file_name + f"{idx}".zfill(number_of_zeroes) + ".jpg"
+                new_path = path_to_folder + "feature_map_layer" + f"{idx}".zfill(number_of_zeroes) + ".jpg"
                 plt.imshow(features[idx], cmap="cividis")
                 plt.axis("off")
                 plt.savefig(new_path, bbox_inches="tight")
@@ -180,7 +179,7 @@ class FeatureExtractor:
             dummy_file_path (str): path of the file used to determine the shapes and connections between layers
         """
         batch = self.get_image_from_file(dummy_file_path).unsqueeze(0)
-        export_path = export_path + "_sliced.onnx"
+        export_path = os.path.join(export_path, "feature_extractor.onnx")
 
         add_shape_info = False
         if not os.path.exists(export_path):
@@ -244,12 +243,12 @@ class FeatureExtractor:
         except Exception as e:
             print(f"Could not plot features due to: {e}")
 
-    def plot_filters(self, layer_name: str, how_many: int, normalize: bool = True, seed: int = None) -> None:
+    def plot_filters(self, layer_num: int, how_many: int, normalize: bool = True, seed: int = None) -> None:
         """
-        A method used for plotting the filter shapes and weights of the given layer
+        A method used for plotting the filter shapes and weights of the last layer
 
         Args:
-            layer_name (str): name of the layer to visualize based on the nodes name
+            layer_num (int): number of the layer which filters will be visualized
             how_many (int): number of filters to visualize
             normalize (bool): whether the weights should be normalized before visualization
             seed (int): passed to the random generator. Used for reproducibility
@@ -259,7 +258,7 @@ class FeatureExtractor:
         """
 
         try:
-            filters = self.slice_net(layer_name)[...: -1].weight.detach().numpy()
+            filters = list(self.model.features.children())[layer_num].weight.detach().numpy()
             c_out, c_in, h, w = filters.shape  # (Channels_out, Channels_in/Groups, K_height, K_width)
 
             if how_many > c_out:
@@ -277,14 +276,14 @@ class FeatureExtractor:
                 filters_ids = random.sample(range(c_out), how_many)
                 filters = filters[filters_ids, :, :, :]
 
-                fig, axs = plt.subplots(how_many, c_in)
+                fig, axs = plt.subplots(how_many, how_many)
                 im = None
                 for row in range(how_many):
-                    for column in range(c_in):
+                    for column, ch_num in enumerate(random.sample(range(c_in), how_many)):
                         if row == 0:
-                            axs[row, column].set_title(f"Channel {column+1}")
+                            axs[row, column].set_title(f"Channel {ch_num+1}")
 
-                        im = axs[row, column].imshow(filters[row][column], cmap="cividis")
+                        im = axs[row, column].imshow(filters[row][ch_num], cmap="cividis")
                         axs[row, column].axis('off')
                 colour_bar = plt.colorbar(im, ax=axs.ravel().tolist())
                 colour_bar.outline.set_visible(False)
@@ -296,14 +295,10 @@ class FeatureExtractor:
 
 if __name__ == '__main__':
     image_path = "imgs/surfing.jpg"
-    model_export_name = './onnx_models/mobilenet'
-    folder_path = "./feature_maps/"
 
-    fe = FeatureExtractor(model_name="mobilenet", device="cpu")
-    fe.slice_net("features.16", overwrite_model=True)
-    # fe.save_feature_maps(image_path, folder_path)
+    fe = FeatureExtractor(model_name="vgg", device="cpu")
+    fe.slice_net("features.32", overwrite_model=True)
     image = fe.get_image_from_file(image_path).unsqueeze(0)
     output = fe.feed(image)
-    # fe.export_onnx(model_export_name, image_path)
     fe.plot_feature_maps(output, plot_shape=(5, 5))
-    # fe.plot_filters(20, 4)
+    fe.plot_filters(3,  4)
