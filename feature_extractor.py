@@ -6,7 +6,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from torchvision.io import read_image
-from torchvision.models import MNASNet, mnasnet0_75, MNASNet0_75_Weights
+from torchvision.models import (
+    MNASNet,
+    mnasnet0_75,
+    MNASNet0_75_Weights,
+    MobileNetV3,
+    mobilenet_v3_large,
+    MobileNet_V3_Large_Weights,
+)
 from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
 import onnx
 
@@ -44,6 +51,16 @@ class FeatureExtractor:
                 param.requires_grad = False
 
             self.image_transform = MNASNet0_75_Weights.IMAGENET1K_V1.transforms(antialias=True)
+            self.last_layer_name = self.list_all_layers()[-1]
+
+        elif model_name == "mobilenet":
+            self.model: MobileNetV3 = mobilenet_v3_large(weights=MobileNet_V3_Large_Weights.IMAGENET1K_V2)
+            self.model.to(self.device)
+
+            for param in self.model.parameters():
+                param.requires_grad = False
+
+            self.image_transform = MobileNet_V3_Large_Weights.IMAGENET1K_V2.transforms(antialias=True)
             self.last_layer_name = self.list_all_layers()[-1]
         else:
             raise NotImplementedError
@@ -279,11 +296,11 @@ class FeatureExtractor:
 
 if __name__ == '__main__':
     image_path = "imgs/surfing.jpg"
-    model_export_name = './onnx_models/mnasnet0_75'
+    model_export_name = './onnx_models/mobilenet'
     folder_path = "./feature_maps/"
 
-    fe = FeatureExtractor(device="cpu")
-    fe.slice_net("layers.0", overwrite_model=True)
+    fe = FeatureExtractor(model_name="mobilenet", device="cpu")
+    fe.slice_net("features.16", overwrite_model=True)
     # fe.save_feature_maps(image_path, folder_path)
     image = fe.get_image_from_file(image_path).unsqueeze(0)
     output = fe.feed(image)
