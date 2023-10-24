@@ -177,8 +177,8 @@ if __name__ == "__main__":
     with open(file_path, "r") as f:
         raw_file = f.read()
 
-    fe = FeatureExtractor(device="cpu")
-    fe.slice_net("layers.15", overwrite_model=True)
+    fe = FeatureExtractor(model_name="vgg", device="cpu")
+    fe.slice_net("features.32", overwrite_model=True)
     tk = Tokenizer(raw_file, folder)
     sh = Sharder(tk, fe, batch_size=32, shard_size=2000)
     sh.save_shards()
