@@ -6,6 +6,7 @@ from typing import Dict, Optional, Tuple
 import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
+from torchtext.data.metrics import bleu_score
 
 from transformer import Decoder
 from caption_generator import CaptionGenerator
@@ -145,6 +146,13 @@ class Trainer:
         acc = torch.sum(match * mask) / torch.sum(mask)
         return acc
 
+    @staticmethod
+    def __calc_bleu(logits: torch.Tensor, labels: torch.Tensor) -> torch.float32:
+        predictions = torch.argmax(logits, dim=-1)
+        labels = labels.to(torch.int64)
+        acc = bleu_score(predictions, labels)
+        return acc
+
     def __on_epoch_end(self,
                        current_epoch: int,
                        number_of_epochs: int,
@@ -160,21 +168,15 @@ class Trainer:
             optimizer (AdamW): optimizer (used to save its state)
             progress_path (str): path to the folder where the checkpoint is saved
         """
-
-        device = self.hyperparams["device"]
-        captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, device)
-        self.writer.add_text("Captioner", captioner.generate(self.sample_image_path, max_size=80))
-
         e = current_epoch
         path_to_save = progress_path.split('_')[0] + f"_{e + 1}_of_{number_of_epochs}.pt"
 
-        path_to_save = os.path.join(self.checkpoint_path, path_to_save)
         torch.save({
             'epoch': e,
             'model_state_dict': self.decoder.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'hyperparams': self.hyperparams
-        }, path_to_save)
+        }, os.path.join(self.checkpoint_path, path_to_save))
 
     @torch.no_grad()
     def calculate_losses_and_accuracy(self, iterations: int, batch_size: int):
@@ -234,16 +236,20 @@ class Trainer:
             for i, (x1, x2, y) in enumerate(train_dataloader):
                 if i % eval_each == 0:
                     losses, accuracy = self.calculate_losses_and_accuracy(eval_iterations, batch_size)
+                    captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, self.device)
 
                     print(f"Epoch: [{e + 1}/{number_of_epochs}], "
                           f"Step: [{i}/{all_iters}], "
                           f"Train loss: {losses['train']:.4f}, "
                           f"Val loss: {losses['valid']:.4f}, "
                           f"Train acc: {accuracy['train']:.4f}, "
-                          f"Val acc: {accuracy['valid']:.4f}")
+                          f"Val acc: {accuracy['valid']:.4f}, "
+                          f"Caption: {captioner.generate(self.sample_image_path, max_size=30)}")
 
                     self.writer.add_scalar("train_loss", losses["train"], e * all_iters + i)
                     self.writer.add_scalar("valid_loss", losses["valid"], e * all_iters + i)
+                    self.writer.add_scalar("train_acc", accuracy["train"], e * all_iters + i)
+                    self.writer.add_scalar("valid_acc", accuracy["valid"], e * all_iters + i)
 
                 x1, x2, y = x1.to(self.device), x2.to(self.device), y.to(self.device)
                 optimizer.zero_grad(set_to_none=True)
