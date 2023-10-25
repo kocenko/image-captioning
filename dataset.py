@@ -112,8 +112,8 @@ class Sharder:
                 image_paths = [self.tokenizer.image_paths[i] for i in shard]
                 captions = [self.tokenizer.captions[i] for i in shard]
 
-                img = self.load_and_transform_image(image_paths)
                 cap = self.load_and_transform_caption(captions)
+                img = self.load_and_transform_image(image_paths)
 
                 torch.save((img, cap), os.path.join(self.shard_folders[i], f"{key}_shard_{j}.pt"))
                 print(f"Saved: {key}_shard_{j}")
@@ -139,8 +139,8 @@ class ImageCaptionDataset(Dataset):
 
         img, cap = torch.load(shard_path, map_location=device)
         self.image_features = img
-        self.captions = cap[..., :-1]
-        self.labels = cap[..., 1:]
+        self.captions = cap[:, :-1]
+        self.labels = cap[:, 1:]
 
     def __len__(self) -> int:
         """
@@ -188,6 +188,6 @@ if __name__ == "__main__":
 
     fe = FeatureExtractor(model_name="mnasnet0_75", device="cpu")
     fe.slice_net("layers.15", overwrite_model=True)
-    tk = Tokenizer(raw_file, folder)
+    tk = Tokenizer(raw_file, folder, reduce=True)
     sh = Sharder(tk, fe, batch_size=32, shard_size=2000)
-    # sh.save_shards()
+    sh.save_shards()
