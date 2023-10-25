@@ -45,6 +45,7 @@ hyperparameters["vocabulary_size"] = len(tk.word_list)
 hyperparameters["context_length"] = tk.max_length
 hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_file).unsqueeze(0)).shape[1]
 hyperparameters["word_count"] = tk.counter
+hyperparameters["encode_map"] = tk.encode_map
 
 trainer = Trainer(tk, fe, sh, checkpoint_path, sample_image_file, wr, hyperparameters)
 trainer.train()
