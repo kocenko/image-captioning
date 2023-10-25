@@ -26,13 +26,13 @@ hyperparameters = {
     "blocks_number": 1,
     "heads_number": 1,
     "head_size": 256,
-    "net_slice_index": "layers.32",
+    "net_slice_index": "layers.15",
     "eval_iterations": 10,
     "eval_per_epoch": 10,
     "device": "cpu"
 }
 
-fe = FeatureExtractor(model_name="vgg", device=hyperparameters["device"])
+fe = FeatureExtractor(model_name="mnasnet0_75", device=hyperparameters["device"])
 if hyperparameters["net_slice_index"]:
     fe.slice_net(hyperparameters["net_slice_index"], overwrite_model=True)
 tk = Tokenizer(raw_file, folder, reduce=True)
@@ -45,7 +45,6 @@ hyperparameters["vocabulary_size"] = len(tk.word_list)
 hyperparameters["context_length"] = tk.max_length
 hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_file).unsqueeze(0)).shape[1]
 hyperparameters["word_count"] = tk.counter
-hyperparameters["encode_map"] = tk.encode_map
 
-trainer = Trainer(tk, fe, sh, checkpoint_path, sample_image_file, wr, hyperparameters, test=True)
+trainer = Trainer(tk, fe, sh, checkpoint_path, sample_image_file, wr, hyperparameters)
 trainer.train()
