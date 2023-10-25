@@ -80,6 +80,7 @@ class Tokenizer:
 
         line = line.lower()
         line = line.translate(str.maketrans('', '', string.punctuation))  # Removing punctuation
+        line = line.strip()
         return line
 
     def __pad(self, token_list: list[int]) -> list[int]:
