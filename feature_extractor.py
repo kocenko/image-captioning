@@ -68,7 +68,10 @@ class FeatureExtractor:
         self.model = model_config["model"](weights=model_config["weights"])
         self.image_transform = model_config["weights"].transforms(antialias=True)
         self.model.to(self.device)
-        self.model.eval()
+
+        for param in self.model.parameters():
+            param.requires_grad = False
+
         self.last_layer_name = self.list_all_layers()[-1]
 
     def list_all_layers(self, display: bool = False) -> List[str]:

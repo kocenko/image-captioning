@@ -1,7 +1,5 @@
 import os.path
 import random
-import math
-import gc
 from typing import Any
 
 from tokenizer import Tokenizer
@@ -26,10 +24,12 @@ class Sharder:
         self.extractor = extractor
         self.shard_size = shard_size
         self.batch_size = batch_size
+        self.dataset_size = len(tokenizer.image_paths)
+        self.split_ratio = split_ratio
         self.device: Any = torch.device(device)
         self.split_indexes = {}
 
-        self.__set_split_indexes(split_ratio)
+        self.set_split_indexes()
 
         # Create directories
         self.shard_folders = ['shards/train', 'shards/valid', 'shards/test']
@@ -38,30 +38,35 @@ class Sharder:
                 os.makedirs(split)
 
     @staticmethod
-    def __split_evenly(array: list[Any], divisor: int) -> list[Any]:
-        chunks_num = math.ceil(len(array) / divisor)
+    def split_evenly(list_size: int, elements_per_group: int) -> list[Any]:
+        """
+        Splits list into even groups.
 
-        chunks_list = []
-        for chunk_num in range(chunks_num):
-            begin_idx = chunk_num * divisor
-            end_idx = chunk_num * divisor + divisor
-            chunks_list.append(array[begin_idx: end_idx])
+        Args:
+            list_size (int): size of the input list
+            elements_per_group (int): number of elements in each group
 
-        return chunks_list
+        Returns:
+            Iterator for a list of indexes in each group
+        """
 
-    def __set_split_indexes(self, split_ratio: tuple[int, int, int]) -> None:
-        train_split, valid_split, test_split = split_ratio
-        dataset_size = len(self.tokenizer.image_paths)
-        random_indexes = random.sample(range(dataset_size), dataset_size)
+        for i in range(0, list_size, elements_per_group):
+            yield slice(i, i + elements_per_group)
+
+    def set_split_indexes(self) -> None:
+        train_thresh, valid_thresh = self.split_ratio[0], self.split_ratio[0] + self.split_ratio[1],
+        random_indexes = random.sample(range(self.dataset_size), self.dataset_size)
 
         self.split_indexes = {
-            'train': random_indexes[: int(train_split * dataset_size)],
-            'valid': random_indexes[int(train_split * dataset_size): int((train_split + valid_split) * dataset_size)],
-            'test': random_indexes[int((train_split + valid_split) * dataset_size):],
+            'train': random_indexes[: int(train_thresh * self.dataset_size)],
+            'valid': random_indexes[int(train_thresh * self.dataset_size): int(valid_thresh * self. dataset_size)],
+            'test': random_indexes[int(valid_thresh * self.dataset_size):],
         }
 
         for split_name, index_array in self.split_indexes.items():
-            self.split_indexes[split_name] = self.__split_evenly(index_array, self.shard_size)
+            self.split_indexes[split_name] = [
+                index_array[ids] for ids in self.split_evenly(len(index_array), self.shard_size)
+            ]
 
     def __empty_directory(self) -> None:
         """
@@ -72,19 +77,24 @@ class Sharder:
                 os.remove(file)
                 print(f"Deleted {file}")
 
-    def __load_and_transform_caption(self, captions: list[str]) -> torch.Tensor:
-        full_captions = [f"{self.tokenizer.start_token} {caption} {self.tokenizer.end_token}" for caption in captions]
-        tokenized_captions = [self.tokenizer.encode(full_caption) for full_caption in full_captions]
+    def load_and_transform_caption(self, captions: list[str]) -> torch.Tensor:
+        tokenized_captions = [self.tokenizer.encode(caption) for caption in captions]
         tokenized_caption = torch.tensor(tokenized_captions, device=self.device)
         return tokenized_caption
 
-    def __load_and_transform_image(self, paths: list[str]) -> torch.Tensor:
-        raw_images = [self.extractor.get_image_from_file(path).to(self.device) for path in paths]
-        transformed = [
-            self.extractor.feed(torch.stack(batch, dim=0)) for batch in self.__split_evenly(raw_images, self.batch_size)
-        ]
-        stacked_images = torch.cat(transformed, dim=0)
-        return stacked_images
+    def load_and_transform_image(self, paths: list[str]) -> torch.Tensor:
+        transformed = None
+        for batch_slice in self.split_evenly(len(paths), self.batch_size):
+            raw_images = [self.extractor.get_image_from_file(path).to(self.device) for path in paths[batch_slice]]
+            transformed_batch = self.extractor.feed(torch.stack(raw_images, dim=0))
+
+            if transformed is None:
+                transformed = transformed_batch
+                print(f"Shape of the features batch: {transformed_batch.shape}")
+            else:
+                transformed = torch.cat((transformed, transformed_batch), dim=0)
+
+        return transformed
 
     def save_shards(self, override: bool = False) -> None:
         """
@@ -102,11 +112,10 @@ class Sharder:
                 image_paths = [self.tokenizer.image_paths[i] for i in shard]
                 captions = [self.tokenizer.captions[i] for i in shard]
 
-                img = self.__load_and_transform_image(image_paths)
-                cap = self.__load_and_transform_caption(captions)
+                img = self.load_and_transform_image(image_paths)
+                cap = self.load_and_transform_caption(captions)
 
                 torch.save((img, cap), os.path.join(self.shard_folders[i], f"{key}_shard_{j}.pt"))
-                gc.collect()
                 print(f"Saved: {key}_shard_{j}")
 
 
@@ -177,8 +186,8 @@ if __name__ == "__main__":
     with open(file_path, "r") as f:
         raw_file = f.read()
 
-    fe = FeatureExtractor(model_name="vgg", device="cpu")
-    fe.slice_net("features.32", overwrite_model=True)
+    fe = FeatureExtractor(model_name="mnasnet0_75", device="cpu")
+    fe.slice_net("layers.15", overwrite_model=True)
     tk = Tokenizer(raw_file, folder)
     sh = Sharder(tk, fe, batch_size=32, shard_size=2000)
-    sh.save_shards()
+    # sh.save_shards()

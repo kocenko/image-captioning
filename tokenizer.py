@@ -59,7 +59,7 @@ class Tokenizer:
         self.__reduce: bool = reduce
 
         self.__extract_captions()
-        self.max_length: int = len(max(self.captions, key=len)) + 2  # Plus 2 for <start> and <end> tokens
+        self.max_length: int = len(max(self.captions, key=len))
 
         if self.__reduce:
             self.__reduce_vocabulary()
@@ -115,7 +115,7 @@ class Tokenizer:
                 caption = self.standardize(caption)
 
             self.counter.update(caption.split())
-            self.captions.append(caption)
+            self.captions.append(f"{Tokenizer.start_token} {caption} {Tokenizer.end_token}")
 
         self.word_list = [word for word, count in sorted(self.counter.items(), key=lambda x: x[1], reverse=True)]
 
