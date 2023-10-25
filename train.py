@@ -6,7 +6,6 @@ from typing import Dict, Optional, Tuple
 import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
-from torchtext.data.metrics import bleu_score
 
 from transformer import Decoder
 from caption_generator import CaptionGenerator
@@ -144,13 +143,6 @@ class Trainer:
         labels = labels.to(torch.int64)
         match = (predictions == labels).to(mask.dtype)
         acc = torch.sum(match * mask) / torch.sum(mask)
-        return acc
-
-    @staticmethod
-    def __calc_bleu(logits: torch.Tensor, labels: torch.Tensor) -> torch.float32:
-        predictions = torch.argmax(logits, dim=-1)
-        labels = labels.to(torch.int64)
-        acc = bleu_score(predictions, labels)
         return acc
 
     def __on_epoch_end(self,
