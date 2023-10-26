@@ -1,5 +1,6 @@
 import os.path
 import random
+import tqdm
 from typing import Any
 
 from tokenizer import Tokenizer
@@ -90,7 +91,6 @@ class Sharder:
 
             if transformed is None:
                 transformed = transformed_batch
-                print(f"Shape of the features batch: {transformed_batch.shape}")
             else:
                 transformed = torch.cat((transformed, transformed_batch), dim=0)
 
@@ -108,7 +108,7 @@ class Sharder:
             self.__empty_directory()
 
         for i, key in enumerate(self.split_indexes):
-            for j, shard in enumerate(self.split_indexes[key]):
+            for j, shard in enumerate(tqdm.tqdm(self.split_indexes[key])):
                 image_paths = [self.tokenizer.image_paths[i] for i in shard]
                 captions = [self.tokenizer.captions[i] for i in shard]
 
@@ -116,7 +116,6 @@ class Sharder:
                 img = self.load_and_transform_image(image_paths)
 
                 torch.save((img, cap), os.path.join(self.shard_folders[i], f"{key}_shard_{j}.pt"))
-                print(f"Saved: {key}_shard_{j}")
 
 
 class ImageCaptionDataset(Dataset):
@@ -174,7 +173,7 @@ def custom_dataloader(split_name: str, sharder: Sharder, batch_size: int):
 
     for shard_file in shard_files:
         dataset = ImageCaptionDataset(os.path.join(shard_folder, shard_file), sharder.device)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=8)
         for (img, caption, label) in dataloader:
             yield img, caption, label
 
@@ -189,5 +188,5 @@ if __name__ == "__main__":
     fe = FeatureExtractor(model_name="mnasnet0_75", device="cpu")
     fe.slice_net("layers.15", overwrite_model=True)
     tk = Tokenizer(raw_file, folder, reduce=True)
-    sh = Sharder(tk, fe, batch_size=32, shard_size=2000)
+    sh = Sharder(tk, fe, batch_size=32, shard_size=8*32)
     sh.save_shards()
