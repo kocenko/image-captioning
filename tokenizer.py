@@ -77,9 +77,9 @@ class Tokenizer:
         Returns:
             Standardized string
         """
-
+        punctuation = string.punctuation.replace('<', '').replace('>', '')
+        line = line.translate(str.maketrans('', '', punctuation))  # Removing punctuation
         line = line.lower()
-        line = line.translate(str.maketrans('', '', string.punctuation))  # Removing punctuation
         line = line.strip()
         return line
 
@@ -160,7 +160,8 @@ class Tokenizer:
         """
 
         output_list = []
-        word_list = self.standardize(line_to_encode).split()  # TODO: What if <start> first
+        word_list = self.standardize(line_to_encode).split()
+        print(word_list)
 
         for word in word_list:
             if word in self.encode_map:

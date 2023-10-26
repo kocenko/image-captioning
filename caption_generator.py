@@ -104,7 +104,9 @@ class CaptionGenerator:
 
 
 if __name__ == '__main__':
-    checkpoint = torch.load("../trained/24-10-2023/checkpoint/2023-10-24 14-46-29_45_of_100.pt", map_location=torch.device("cpu"))
+    checkpoint = torch.load(
+        "../trained/24-10-2023/checkpoint/2023-10-24 14-46-29_45_of_100.pt", map_location=torch.device("cpu")
+    )
     hyperparams = checkpoint["hyperparams"]
     hyperparams["device"] = "cpu"
 
