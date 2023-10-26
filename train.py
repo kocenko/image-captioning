@@ -1,4 +1,5 @@
 import os
+import tqdm
 from datetime import datetime
 from itertools import islice
 from typing import Dict, Optional, Tuple
@@ -34,15 +35,15 @@ class Trainer:
     datetime_format = "%Y-%m-%d %H-%M-%S"
 
     def __init__(
-            self,
-            tokenizer: Tokenizer,
-            feature_extractor: FeatureExtractor,
-            sharder: Sharder,
-            checkpoint_path: str,
-            sample_image_path: str,
-            writer: SummaryWriter,
-            hyperparams: dict,
-            test: bool = False
+        self,
+        tokenizer: Tokenizer,
+        feature_extractor: FeatureExtractor,
+        sharder: Sharder,
+        checkpoint_path: str,
+        sample_image_path: str,
+        writer: SummaryWriter,
+        hyperparams: dict,
+        test: bool = False,
     ) -> None:
         """
         Initializes Trainer class
@@ -91,7 +92,7 @@ class Trainer:
         # Finding all checkpoints
         epochs_done: Dict[str, Tuple[int, int, str]] = {}  # {Time, (epoch, epoch_max, path)
         for file in all_files:
-            words = file.split('.')[0].split('_')
+            words = file.split(".")[0].split("_")
 
             if words[0] in epochs_done:
                 if int(words[1]) > epochs_done[words[0]][0]:
@@ -127,7 +128,7 @@ class Trainer:
         predictions = predictions.view(b * t, c)
         labels = labels.view(b * t)
 
-        loss = F.cross_entropy(predictions, labels, reduction='none')
+        loss = F.cross_entropy(predictions, labels, reduction="none")
 
         mask = (labels != 0) & (loss < 1e8)
         mask = mask.float()
@@ -138,19 +139,16 @@ class Trainer:
 
     @staticmethod
     def __calc_masked_accuracy(logits: torch.Tensor, labels: torch.Tensor) -> torch.float32:
-        mask = (labels != 0)
+        mask = labels != 0
         predictions = torch.argmax(logits, dim=-1)
         labels = labels.to(torch.int64)
         match = (predictions == labels).to(mask.dtype)
         acc = torch.sum(match * mask) / torch.sum(mask)
         return acc
 
-    def __on_epoch_end(self,
-                       current_epoch: int,
-                       number_of_epochs: int,
-                       optimizer: torch.optim.AdamW,
-                       progress_path: str
-                       ) -> None:
+    def __on_epoch_end(
+        self, current_epoch: int, number_of_epochs: int, optimizer: torch.optim.AdamW, progress_path: str
+    ) -> None:
         """
         Adds log to the writer and saves the current state of the model
 
@@ -161,14 +159,22 @@ class Trainer:
             progress_path (str): path to the folder where the checkpoint is saved
         """
         e = current_epoch
-        path_to_save = progress_path.split('_')[0] + f"_{e + 1}_of_{number_of_epochs}.pt"
+        path_to_save = progress_path.split("_")[0] + f"_{e + 1}_of_{number_of_epochs}.pt"
 
-        torch.save({
-            'epoch': e,
-            'model_state_dict': self.decoder.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'hyperparams': self.hyperparams
-        }, os.path.join(self.checkpoint_path, path_to_save))
+        torch.save(
+            {
+                "epoch": e,
+                "model_state_dict": self.decoder.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "hyperparams": self.hyperparams,
+            },
+            os.path.join(self.checkpoint_path, path_to_save),
+        )
+
+        captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, self.device)
+        generated = captioner.generate(self.sample_image_path, max_size=30)
+        self.writer.add_text("caption", generated, e)
+        print(f"\n\nCaption: {generated}\n")
 
     @torch.no_grad()
     def calculate_losses_and_accuracy(self, iterations: int, batch_size: int):
@@ -220,23 +226,21 @@ class Trainer:
         if checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        all_iters = sum([len(l) for l in self.sharder.split_indexes['train']]) // batch_size
+        all_iters = sum([len(l) for l in self.sharder.split_indexes["train"]]) // batch_size
         eval_each = all_iters // min(all_iters, eval_per_epoch)
 
         for e in range(current_epoch, number_of_epochs):
-            train_dataloader = custom_dataloader('train', self.sharder, batch_size=batch_size)
-            for i, (x1, x2, y) in enumerate(train_dataloader):
+            print(f"Epoch {e + 1}/{number_of_epochs}")
+            train_dataloader = custom_dataloader("train", self.sharder, batch_size=batch_size)
+            for i, (x1, x2, y) in (loading_bar := tqdm.tqdm(enumerate(train_dataloader), colour="00ff00")):
                 if i % eval_each == 0:
                     losses, accuracy = self.calculate_losses_and_accuracy(eval_iterations, batch_size)
-                    captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, self.device)
-
-                    print(f"Epoch: [{e + 1}/{number_of_epochs}], "
-                          f"Step: [{i}/{all_iters}], "
-                          f"Train loss: {losses['train']:.4f}, "
-                          f"Val loss: {losses['valid']:.4f}, "
-                          f"Train acc: {accuracy['train']:.4f}, "
-                          f"Val acc: {accuracy['valid']:.4f}, "
-                          f"Caption: {captioner.generate(self.sample_image_path, max_size=30)}")
+                    loading_bar.set_postfix_str(
+                        f"Train loss: {losses['train']:.4f} --- "
+                        f"Train accuracy {accuracy['train']:.4f} --- "
+                        f"Validation loss: {losses['valid']:.4f} --- "
+                        f"Validation accuracy {accuracy['valid']:.4f}"
+                    )
 
                     self.writer.add_scalar("train_loss", losses["train"], e * all_iters + i)
                     self.writer.add_scalar("valid_loss", losses["valid"], e * all_iters + i)
