@@ -161,7 +161,6 @@ class Tokenizer:
 
         output_list = []
         word_list = self.standardize(line_to_encode).split()
-        print(word_list)
 
         for word in word_list:
             if word in self.encode_map:
