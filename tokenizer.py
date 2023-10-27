@@ -27,8 +27,6 @@ class Tokenizer:
     unknown_token = '<unknown>'
 
     base_tokens = [empty_token, start_token, end_token, unknown_token]
-    base_encode_map = {token: i for i, token in enumerate(base_tokens)}
-    base_decode_map = {i: token for i, token in enumerate(base_tokens)}
 
     def __init__(
             self,
@@ -51,10 +49,10 @@ class Tokenizer:
         self.images_folder: str = images_folder
         self.image_paths: list[str] = []
         self.captions: list[str] = []
-        self.word_list: list[str] = []
+        self.word_list: list[str] = [Tokenizer.empty_token, Tokenizer.unknown_token]  # Because it is not read from data
         self.counter: Counter = Counter()
-        self.encode_map: dict = Tokenizer.base_encode_map
-        self.decode_map: dict = Tokenizer.base_decode_map
+        self.encode_map: dict = dict()
+        self.decode_map: dict = dict()
         self.__standardize: bool = standardize
         self.__reduce: bool = reduce
 
@@ -111,37 +109,32 @@ class Tokenizer:
 
             self.image_paths.append(os.path.join(self.images_folder, raw_caption[0].split('.')[0] + ".jpg"))
 
-            caption = raw_caption[1]
+            caption = f"{Tokenizer.start_token} {raw_caption[1]} {Tokenizer.end_token}"
             if self.standardize:
                 caption = self.standardize(caption)
 
             self.counter.update(caption.split())
-            self.captions.append(f"{Tokenizer.start_token} {caption} {Tokenizer.end_token}")
+            self.captions.append(caption)
 
-        self.word_list = [word for word, count in sorted(self.counter.items(), key=lambda x: x[1], reverse=True)]
+        self.word_list.extend([word for word, count in sorted(self.counter.items(), key=lambda x: x[1], reverse=True)])
 
-    def __reduce_vocabulary(self, vocab_size: int = 4996) -> None:
+    def __reduce_vocabulary(self, vocab_size: int = 5000) -> None:
         """
         Reduces the vocabulary to the given size
 
         Args:
-            vocab_size (int): size of the vocabulary list on output (excluding base tokens)
+            vocab_size (int): size of the vocabulary list on output
         """
 
         self.word_list = self.word_list[:vocab_size]
-        self.counter = Counter(dict(self.counter.most_common(vocab_size)))
+        self.counter = Counter(dict(self.counter.most_common(vocab_size - 2)))  # Leaving place for empty and unknown
 
     def __create_mappings(self) -> None:
         """
         Method used to construct mappings based on the current word set
         """
-
-        base_encode_size = len(self.encode_map)
-        base_decode_size = len(self.decode_map)
-
-        self.encode_map = self.encode_map | {token: i + base_encode_size for i, token in enumerate(self.word_list)}
-        self.decode_map = self.decode_map | {i + base_decode_size: token for i, token in enumerate(self.word_list)}
-        self.word_list = Tokenizer.base_tokens + self.word_list
+        self.encode_map = {token: i for i, token in enumerate(self.word_list)}
+        self.decode_map = {i: token for i, token in enumerate(self.word_list)}
 
     def encode(self, line_to_encode: str, pad: bool = True) -> list[int]:
         """
