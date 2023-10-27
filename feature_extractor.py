@@ -11,8 +11,8 @@ from torchvision.models.feature_extraction import create_feature_extractor, get_
 from torchvision.models import (
     mnasnet0_75,
     MNASNet0_75_Weights,
-    mobilenet_v3_large,
-    MobileNet_V3_Large_Weights,
+    mobilenet_v3_small,
+    MobileNet_V3_Small_Weights,
     vgg16_bn,
     VGG16_BN_Weights,
 )
@@ -36,8 +36,8 @@ class FeatureExtractor:
             "weights": MNASNet0_75_Weights.IMAGENET1K_V1,
         },
         "mobilenet": {
-            "model": mobilenet_v3_large,
-            "weights": MobileNet_V3_Large_Weights.IMAGENET1K_V1,
+            "model": mobilenet_v3_small,
+            "weights": MobileNet_V3_Small_Weights.IMAGENET1K_V1,
         },
         "vgg": {
             "model": vgg16_bn,
@@ -299,8 +299,8 @@ class FeatureExtractor:
 if __name__ == '__main__':
     image_path = "imgs/surfing.jpg"
 
-    fe = FeatureExtractor(model_name="vgg", device="cpu")
-    fe.slice_net("features.32", overwrite_model=True)
+    fe = FeatureExtractor(model_name="mobilenet", device="cpu")
+    fe.slice_net("features.12", overwrite_model=True)
     image = fe.get_image_from_file(image_path).unsqueeze(0)
     output = fe.feed(image)
     fe.plot_feature_maps(output, plot_shape=(5, 5))
