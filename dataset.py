@@ -173,7 +173,7 @@ def custom_dataloader(split_name: str, sharder: Sharder, batch_size: int):
 
     for shard_file in shard_files:
         dataset = ImageCaptionDataset(os.path.join(shard_folder, shard_file), sharder.device)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=8)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         for (img, caption, label) in dataloader:
             yield img, caption, label
 
