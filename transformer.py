@@ -102,21 +102,21 @@ class TransformerBlock(nn.Module):
         self.layer_normalization_2 = nn.LayerNorm(embeddings_number, device=device)
 
         # Feed forward
-        self.feed_forward = nn.Sequential(nn.Linear(embeddings_number, 4 * embeddings_number, device=device),
+        self.feed_forward = nn.Sequential(nn.Linear(embeddings_number, 2 * embeddings_number, device=device),
                                           nn.ReLU(),
-                                          nn.Linear(4 * embeddings_number, embeddings_number, device=device),
+                                          nn.Linear(2 * embeddings_number, embeddings_number, device=device),
                                           nn.Dropout(dropout_rate))
         self.layer_normalization_3 = nn.LayerNorm(embeddings_number, device=device)
         self.last_attention_scores: Optional[torch.Tensor] = None
 
     def forward(self, image, caption):
         # Note: pre-norm formulation can be used
-        x = caption + self.self_attention(caption, caption)
+        x = torch.add(caption, self.self_attention(caption, caption))
         x = self.layer_normalization_1(x)
 
         cross_attention = self.cross_attention(x, image)
         self.last_attention_scores = self.cross_attention.last_attention_scores
-        x = x + cross_attention
+        x = torch.add(x, cross_attention)
         x = self.layer_normalization_2(x)
 
         x = x + self.feed_forward(x)
@@ -145,7 +145,7 @@ class TokenEmbedding(nn.Module):
         _, sequence_size = sequence.shape
         token_embedding = self.token_embedding_table(sequence)
         positional_embedding = self.positional_embedding(torch.arange(sequence_size, device=self.device).unsqueeze(0))
-        sequence = token_embedding + positional_embedding
+        sequence = torch.add(token_embedding, positional_embedding)
         return sequence
 
 
@@ -153,8 +153,8 @@ class DecoderOutputLayer(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
         self.counter: Counter = kwargs["word_count"]
-        self.banned_tokens: list = kwargs["banned_tokens"]
         self.encode_map: dict = kwargs["encode_map"]
+        self.banned_tokens: list[int] = [self.encode_map[token] for token in kwargs["banned_tokens"]]
         self.device: str = kwargs["device"]
 
         embeddings_number = kwargs["embeddings_number"]
@@ -164,7 +164,6 @@ class DecoderOutputLayer(nn.Module):
         counts_list = np.zeros(shape=(vocabulary_size,))
         token_indexes = np.array([self.encode_map[key] for key in self.counter.keys()])
         counts_list[token_indexes] = list(self.counter.values())
-
         counts_list[self.banned_tokens] = 0
 
         # Creating bias based on the tokens distribution
@@ -203,7 +202,7 @@ class Decoder(nn.Module):
         for block in self.blocks:
             x = block(image, x)
 
-        x = self.layer_normalization(x)
+        # x = self.layer_normalization(x)
         logits = self.output_layer(x)
 
         return logits
