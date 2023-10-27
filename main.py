@@ -31,26 +31,26 @@ def main():
     hyperparameters = {
         "batches": 32,
         "split_lengths": (.7, .2, .1),
-        "banned_tokens": [0, 1, 3],
+        "banned_tokens": ["<unknown>", "<start>", ""],
         "embeddings_number": 256,
-        "dropout_rate": 0.1,
+        "dropout_rate": 0.5,
         "learning_rate": 1e-4,
         "epochs": 20,
-        "blocks_number": 1,
-        "heads_number": 1,
-        "head_size": 256,
-        "net_slice_index": "layers.15",
+        "blocks_number": 2,
+        "heads_number": 2,
+        "head_size": 128,
+        "net_slice_index": "features.12",
         "eval_iterations": 10,
         "eval_per_epoch": 10,
         "device": "cpu"
     }
 
-    fe = FeatureExtractor(model_name="mnasnet0_75", device=hyperparameters["device"])
+    fe = FeatureExtractor(model_name="mobilenet", device=hyperparameters["device"])
     if hyperparameters["net_slice_index"]:
         fe.slice_net(hyperparameters["net_slice_index"], overwrite_model=True)
     tk = Tokenizer(raw_file, paths["images"], reduce=True)
     batches = hyperparameters["batches"]
-    sh = Sharder(tk, fe, batch_size=batches, shard_size=batches*50, device=hyperparameters["device"])
+    sh = Sharder(tk, fe, batch_size=batches, shard_size=2000, device=hyperparameters["device"])
     # sh.save_shards()
     wr = SummaryWriter(paths["summary_folder"])
 
