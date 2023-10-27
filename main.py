@@ -1,3 +1,5 @@
+import os
+
 from tokenizer import Tokenizer
 from feature_extractor import FeatureExtractor
 from dataset import Sharder
@@ -7,13 +9,22 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def main():
-    file_path = 'dataset/captions.txt'
-    folder = 'dataset/images/'
-    sample_image_file = 'imgs/rooster.jpg'
-    checkpoint_path = 'checkpoints/'
-    summary_folder = 'summary/'
+    paths = {
+        "dataset_folder": "dataset",
+        "sample_images_folder": "imgs",
+        "checkpoints_folder": "checkpoints",
+        "summary_folder": "summary"
+    }
+    paths["images"] = os.path.join(paths["dataset_folder"], "images")
+    paths["captions"] = os.path.join(paths["dataset_folder"], "captions.txt")
+    paths["sample_image"] = os.path.join(paths["sample_images_folder"], "rooster.jpg")
 
-    with open(file_path, "r") as f:
+    folders = [paths["dataset_folder"], paths["images"], paths["summary_folder"], paths["checkpoints_folder"]]
+    for path in folders:
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+    with open(paths["captions"], "r") as f:
         raw_file = f.read()
 
     # Head size should be equal to embeddings_number // heads_number
@@ -37,19 +48,20 @@ def main():
     fe = FeatureExtractor(model_name="mnasnet0_75", device=hyperparameters["device"])
     if hyperparameters["net_slice_index"]:
         fe.slice_net(hyperparameters["net_slice_index"], overwrite_model=True)
-    tk = Tokenizer(raw_file, folder, reduce=True)
-    sh = Sharder(tk, fe, batch_size=hyperparameters["batches"], shard_size=2000, device=hyperparameters["device"])
+    tk = Tokenizer(raw_file, paths["images"], reduce=True)
+    batches = hyperparameters["batches"]
+    sh = Sharder(tk, fe, batch_size=batches, shard_size=batches*50, device=hyperparameters["device"])
     # sh.save_shards()
-    wr = SummaryWriter(summary_folder)
+    wr = SummaryWriter(paths["summary_folder"])
 
     # Updating dependent hyperparameters
     hyperparameters["vocabulary_size"] = len(tk.word_list)
     hyperparameters["context_length"] = tk.max_length
-    hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image_file).unsqueeze(0)).shape[1]
+    hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(paths["sample_image"]).unsqueeze(0)).shape[1]
     hyperparameters["word_count"] = tk.counter
     hyperparameters["encode_map"] = tk.encode_map
 
-    trainer = Trainer(tk, fe, sh, checkpoint_path, sample_image_file, wr, hyperparameters)
+    trainer = Trainer(tk, fe, sh, paths["checkpoints_folder"], paths["sample_image"], wr, hyperparameters)
     trainer.train()
 
 
