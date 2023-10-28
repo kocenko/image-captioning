@@ -17,7 +17,7 @@ def main():
     }
     paths["images"] = os.path.join(paths["dataset_folder"], "images")
     paths["captions"] = os.path.join(paths["dataset_folder"], "captions.txt")
-    paths["sample_image"] = os.path.join(paths["sample_images_folder"], "rooster.jpg")
+    paths["sample_image"] = os.path.join(paths["sample_images_folder"], "surfing.jpg")
 
     folders = [paths["dataset_folder"], paths["images"], paths["summary_folder"], paths["checkpoints_folder"]]
     for path in folders:
@@ -38,20 +38,19 @@ def main():
         "epochs": 20,
         "blocks_number": 2,
         "heads_number": 2,
-        "head_size": 128,
-        "net_slice_index": "features.12",
+        "net_slice_index": "layers.15",
         "eval_iterations": 10,
         "eval_per_epoch": 10,
         "device": "cpu"
     }
 
-    fe = FeatureExtractor(model_name="mobilenet", device=hyperparameters["device"])
+    fe = FeatureExtractor(model_name="mnasnet0_75", device=hyperparameters["device"])
     if hyperparameters["net_slice_index"]:
         fe.slice_net(hyperparameters["net_slice_index"], overwrite_model=True)
     tk = Tokenizer(raw_file, paths["images"], reduce=True)
     batches = hyperparameters["batches"]
     sh = Sharder(tk, fe, batch_size=batches, shard_size=2000, device=hyperparameters["device"])
-    # sh.save_shards()
+    sh.save_shards()
     wr = SummaryWriter(paths["summary_folder"])
 
     # Updating dependent hyperparameters

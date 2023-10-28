@@ -1,3 +1,4 @@
+import math
 from collections import Counter
 from typing import Tuple, Optional
 
@@ -7,79 +8,65 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class EncoderBlock(nn.Module):
-    def __init__(self):
+class MultiHeadAttention(nn.Module):
+    """
+    Implementation of Multi-Head Attention which uses batches for parallelization.
+    """
+
+    def __init__(self, input_shapes: Tuple[int, int, int], mask_out: bool = False, **kwargs):
         super().__init__()
-        self.flattener = nn.Flatten(start_dim=2, end_dim=3)
-
-    def forward(self, x):
-        # Expected input (B, C, H, W)
-        x = self.flattener(x)
-        x = x.transpose(-2, -1)
-        return x
-
-
-class SingleHeadAttention(nn.Module):
-    def __init__(self, input_shapes: Tuple[int, int, int], mask_out: bool = True, **kwargs):
-        super().__init__()
+        embeddings_number = kwargs["embeddings_number"]
         context_length = kwargs["context_length"]
         dropout_rate = kwargs["dropout_rate"]
-        head_size = kwargs["head_size"]
+        heads_number = kwargs["heads_number"]
         device = kwargs["device"]
 
         query_input_shape, key_input_shape, value_input_shape = input_shapes
 
+        self.heads_number = heads_number
         self.mask_out = mask_out
-        self.queries_weights = nn.Linear(query_input_shape, head_size, bias=False, device=device)
-        self.keys_weights = nn.Linear(key_input_shape, head_size, bias=False, device=device)
-        self.values_weights = nn.Linear(value_input_shape, head_size, bias=False, device=device)
-        self.masking_triangle = torch.tril(torch.ones(context_length, context_length, device=device))
-        self.dropout = nn.Dropout(dropout_rate)
+        self.queries_weights = nn.Linear(query_input_shape, embeddings_number, bias=False, device=device)
+        self.keys_weights = nn.Linear(key_input_shape, embeddings_number, bias=False, device=device)
+        self.values_weights = nn.Linear(value_input_shape, embeddings_number, bias=False, device=device)
+        self.register_buffer(
+            "masking_triangle",
+            torch.tril(torch.ones(context_length, context_length, device=device)).view(
+                1, 1, context_length, context_length
+            ),
+        )
+        self.attention_dropout = nn.Dropout(dropout_rate)
+        self.output_projection = nn.Linear(embeddings_number, embeddings_number, device=device)
+        self.output_dropout = nn.Dropout(dropout_rate)
+
         self.last_attention_scores: Optional[torch.Tensor] = None
 
-    def forward(self, query, key_or_value):
-        _, key_sequence_shape, key_channels_shape = key_or_value.shape
+    def forward(self, query: torch.Tensor, key: torch.Tensor, value: Optional[torch.Tensor] = None):
+        if value is None:
+            value = key
 
-        query_vector = self.queries_weights(query)
-        key_vector = self.keys_weights(key_or_value)
-        value_vector = self.values_weights(key_or_value)
+        key_B, key_T, key_C = key.shape
+        query_B, query_T, query_C = query.shape
 
-        affinities = query_vector @ key_vector.transpose(-2, -1)  # Transposing channels with sequence
-        affinities *= key_channels_shape**(-.5)
+        # Output shapes: [B, heads_num, T, heads_size]
+        query_vector = self.queries_weights(query).view(query_B, query_T, self.heads_number, -1).transpose(1, 2)
+        key_vector = self.keys_weights(key).view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
+        value_vector = self.values_weights(value).view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
+
+        # Affinities shape: [B, heads_num, T, T]
+        affinities = torch.matmul(query_vector, key_vector.transpose(-2, -1)) / math.sqrt(key_C)
+
         if self.mask_out:
-            s = key_sequence_shape
-            affinities = affinities.masked_fill(self.masking_triangle[:s, :s] == 0, float('-inf'))
+            affinities = affinities.masked_fill(self.masking_triangle[:, :, key_T, :key_T] == 0, float("-inf"))
         affinities = F.softmax(affinities, dim=-1)
-        affinities = self.dropout(affinities)
+        if self.train:
+            affinities = self.attention_dropout(affinities)
         self.last_attention_scores = affinities
 
-        return affinities @ value_vector
+        output = affinities @ value_vector  # [B, heads_num, T, head_size]
+        output = output.transpose(1, 2).contiguous().view(query_B, query_T, query_C)  # [B, T, C]
+        output = self.output_dropout(self.output_projection(output))
 
-
-class MultiHeadAttention(nn.Module):
-    def __init__(self, input_shapes: Tuple[int, int, int], mask_out: bool = False, **kwargs):
-        super().__init__()
-        heads_number = kwargs["heads_number"]
-        embeddings_number = kwargs["embeddings_number"]
-        dropout_rate = kwargs["dropout_rate"]
-        device = kwargs["device"]
-
-        _, _, value_shape = input_shapes
-
-        self.heads = nn.ModuleList([SingleHeadAttention(input_shapes, mask_out, **kwargs) for _ in range(heads_number)])
-        self.projection = nn.Linear(embeddings_number, embeddings_number, device=device)
-        self.dropout = nn.Dropout(dropout_rate)
-        self.last_attention_scores: Optional[torch.Tensor] = None
-
-    def forward(self, query, key_or_value):
-        single_head_outputs = []
-        for single_head in self.heads:
-            single_head_outputs.append(single_head(query, key_or_value))
-            self.last_attention_scores = single_head.last_attention_scores
-        x = torch.cat(single_head_outputs, dim=-1)
-        x = self.projection(x)
-        x = self.dropout(x)
-        return x
+        return output
 
 
 class TransformerBlock(nn.Module):
@@ -102,10 +89,12 @@ class TransformerBlock(nn.Module):
         self.layer_normalization_2 = nn.LayerNorm(embeddings_number, device=device)
 
         # Feed forward
-        self.feed_forward = nn.Sequential(nn.Linear(embeddings_number, 2 * embeddings_number, device=device),
-                                          nn.ReLU(),
-                                          nn.Linear(2 * embeddings_number, embeddings_number, device=device),
-                                          nn.Dropout(dropout_rate))
+        self.feed_forward = nn.Sequential(
+            nn.Linear(embeddings_number, 2 * embeddings_number, device=device),
+            nn.ReLU(),
+            nn.Linear(2 * embeddings_number, embeddings_number, device=device),
+            nn.Dropout(dropout_rate),
+        )
         self.layer_normalization_3 = nn.LayerNorm(embeddings_number, device=device)
         self.last_attention_scores: Optional[torch.Tensor] = None
 
@@ -168,7 +157,7 @@ class DecoderOutputLayer(nn.Module):
 
         # Creating bias based on the tokens distribution
         all_occurrences = counts_list.sum()
-        scaled_counts = counts_list/all_occurrences  # p
+        scaled_counts = counts_list / all_occurrences  # p
         scaled_counts[counts_list == 0] = 1
         log_p = np.log(scaled_counts)
 
@@ -179,6 +168,18 @@ class DecoderOutputLayer(nn.Module):
     def forward(self, x):
         x = self.linear(x)
         return x + self.bias
+
+
+class EncoderBlock(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.flattener = nn.Flatten(start_dim=2, end_dim=3)
+
+    def forward(self, x):
+        # Expected input (B, C, H, W)
+        x = self.flattener(x)
+        x = x.transpose(-2, -1)
+        return x
 
 
 class Decoder(nn.Module):
