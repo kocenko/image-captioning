@@ -1,8 +1,9 @@
 import torch
 import torch.nn.functional as F
-from transformer import Decoder
-from tokenizer import Tokenizer
-from feature_extractor import FeatureExtractor
+
+from image_captioning.transformer import Decoder
+from image_captioning.tokenizer import Tokenizer
+from image_captioning.feature_extractor import FeatureExtractor
 
 
 class CaptionGenerator:
@@ -17,11 +18,7 @@ class CaptionGenerator:
     """
 
     def __init__(
-            self,
-            decoder: Decoder,
-            tokenizer: Tokenizer,
-            feature_extractor: FeatureExtractor,
-            device: str
+        self, decoder: Decoder, tokenizer: Tokenizer, feature_extractor: FeatureExtractor, device: str
     ) -> None:
         """
         Initializes caption generator
@@ -103,16 +100,16 @@ class CaptionGenerator:
         return self.tokenizer.decode(caption_list)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     checkpoint = torch.load(
         "../trained/24-10-2023/checkpoint/2023-10-24 14-46-29_45_of_100.pt", map_location=torch.device("cpu")
     )
     hyperparams = checkpoint["hyperparams"]
     hyperparams["device"] = "cpu"
 
-    file_path = 'dataset/captions.txt'
-    folder = 'dataset/images/'
-    sample_image_file = 'imgs/rooster.jpg'
+    file_path = "dataset/captions.txt"
+    folder = "dataset/images/"
+    sample_image_file = "imgs/rooster.jpg"
 
     with open(file_path, "r") as f:
         raw_file = f.read()

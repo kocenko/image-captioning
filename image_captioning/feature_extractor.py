@@ -42,7 +42,7 @@ class FeatureExtractor:
         "vgg": {
             "model": vgg16_bn,
             "weights": VGG16_BN_Weights.IMAGENET1K_V1,
-        }
+        },
     }
 
     def __init__(self, model_name: str, device: str = "cuda") -> None:
@@ -159,7 +159,7 @@ class FeatureExtractor:
             img = self.get_image_from_file(path_to_image).unsqueeze(0)
             features = self.feed(img).squeeze().detach().numpy()  # Only first batch
 
-            number_of_zeroes = int(np.ceil(len(features) ** .1))  # For the file name
+            number_of_zeroes = int(np.ceil(len(features) ** 0.1))  # For the file name
             map_list = [i for i in range(min(features.shape[0], max_figs))]
 
             for idx in map_list:
@@ -238,7 +238,7 @@ class FeatureExtractor:
             for row in range(plot_shape[0]):
                 for column in range(plot_shape[1]):
                     im = axs[row, column].imshow(maps[row * plot_shape[0] + column], cmap="cividis")
-                    axs[row, column].axis('off')
+                    axs[row, column].axis("off")
             colour_bar = plt.colorbar(im, ax=axs.ravel().tolist())
             colour_bar.outline.set_visible(False)
             plt.show()
@@ -287,7 +287,7 @@ class FeatureExtractor:
                             axs[row, column].set_title(f"Channel {ch_num+1}")
 
                         im = axs[row, column].imshow(filters[row][ch_num], cmap="cividis")
-                        axs[row, column].axis('off')
+                        axs[row, column].axis("off")
                 colour_bar = plt.colorbar(im, ax=axs.ravel().tolist())
                 colour_bar.outline.set_visible(False)
                 plt.show()
@@ -296,7 +296,7 @@ class FeatureExtractor:
             print(f"Could not visualize filters due to: {e}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     image_path = "imgs/surfing.jpg"
 
     fe = FeatureExtractor(model_name="mobilenet", device="cpu")
@@ -304,4 +304,4 @@ if __name__ == '__main__':
     image = fe.get_image_from_file(image_path).unsqueeze(0)
     output = fe.feed(image)
     fe.plot_feature_maps(output, plot_shape=(5, 5))
-    fe.plot_filters(3,  4)
+    fe.plot_filters(3, 4)

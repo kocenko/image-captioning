@@ -3,8 +3,8 @@ import random
 import tqdm
 from typing import Any
 
-from tokenizer import Tokenizer
-from feature_extractor import FeatureExtractor
+from image_captioning.tokenizer import Tokenizer
+from image_captioning.feature_extractor import FeatureExtractor
 
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -12,15 +12,14 @@ from torch.utils.data import Dataset, DataLoader
 
 class Sharder:
     def __init__(
-            self,
-            tokenizer: Tokenizer,
-            extractor: FeatureExtractor,
-            shard_size: int,
-            batch_size: int,
-            split_ratio: tuple[int, int, int] = (.7, .2, .1),
-            device: str = "cpu"
+        self,
+        tokenizer: Tokenizer,
+        extractor: FeatureExtractor,
+        shard_size: int,
+        batch_size: int,
+        split_ratio: tuple[int, int, int] = (0.7, 0.2, 0.1),
+        device: str = "cpu",
     ) -> None:
-
         self.tokenizer = tokenizer
         self.extractor = extractor
         self.shard_size = shard_size
@@ -33,7 +32,7 @@ class Sharder:
         self.set_split_indexes()
 
         # Create directories
-        self.shard_folders = ['shards/train', 'shards/valid', 'shards/test']
+        self.shard_folders = ["shards/train", "shards/valid", "shards/test"]
         for split in self.shard_folders:
             if not os.path.exists(split):
                 os.makedirs(split)
@@ -55,13 +54,16 @@ class Sharder:
             yield slice(i, i + elements_per_group)
 
     def set_split_indexes(self) -> None:
-        train_thresh, valid_thresh = self.split_ratio[0], self.split_ratio[0] + self.split_ratio[1],
+        train_thresh, valid_thresh = (
+            self.split_ratio[0],
+            self.split_ratio[0] + self.split_ratio[1],
+        )
         random_indexes = random.sample(range(self.dataset_size), self.dataset_size)
 
         self.split_indexes = {
-            'train': random_indexes[: int(train_thresh * self.dataset_size)],
-            'valid': random_indexes[int(train_thresh * self.dataset_size): int(valid_thresh * self. dataset_size)],
-            'test': random_indexes[int(valid_thresh * self.dataset_size):],
+            "train": random_indexes[: int(train_thresh * self.dataset_size)],
+            "valid": random_indexes[int(train_thresh * self.dataset_size) : int(valid_thresh * self.dataset_size)],
+            "test": random_indexes[int(valid_thresh * self.dataset_size) :],
         }
 
         for split_name, index_array in self.split_indexes.items():
@@ -167,20 +169,20 @@ class ImageCaptionDataset(Dataset):
 
 
 def custom_dataloader(split_name: str, sharder: Sharder, batch_size: int):
-    mapping = {'train': 0, 'valid': 1, 'test': 2}
+    mapping = {"train": 0, "valid": 1, "test": 2}
     shard_folder = sharder.shard_folders[mapping[split_name]]
     shard_files = [file for file in os.listdir(shard_folder)]
 
     for shard_file in shard_files:
         dataset = ImageCaptionDataset(os.path.join(shard_folder, shard_file), sharder.device)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        for (img, caption, label) in dataloader:
+        for img, caption, label in dataloader:
             yield img, caption, label
 
 
 if __name__ == "__main__":
-    file_path = 'dataset/captions.txt'
-    folder = 'dataset/images/'
+    file_path = "dataset/captions.txt"
+    folder = "dataset/images/"
 
     with open(file_path, "r") as f:
         raw_file = f.read()
@@ -188,5 +190,5 @@ if __name__ == "__main__":
     fe = FeatureExtractor(model_name="mnasnet0_75", device="cpu")
     fe.slice_net("layers.15", overwrite_model=True)
     tk = Tokenizer(raw_file, folder, reduce=True)
-    sh = Sharder(tk, fe, batch_size=32, shard_size=8*32)
+    sh = Sharder(tk, fe, batch_size=32, shard_size=8 * 32)
     sh.save_shards()

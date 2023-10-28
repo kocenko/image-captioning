@@ -8,11 +8,11 @@ import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
-from transformer import Decoder
-from caption_generator import CaptionGenerator
-from dataset import Sharder, custom_dataloader
-from feature_extractor import FeatureExtractor
-from tokenizer import Tokenizer
+from image_captioning.transformer import Decoder
+from image_captioning.caption_generator import CaptionGenerator
+from image_captioning.dataset import Sharder, custom_dataloader
+from image_captioning.feature_extractor import FeatureExtractor
+from image_captioning.tokenizer import Tokenizer
 
 
 class Trainer:
@@ -174,7 +174,7 @@ class Trainer:
         captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, self.device)
         generated = captioner.generate(self.sample_image_path, max_size=30)
         self.writer.add_text("caption", generated, e)
-        print(f"\n\nCaption: {generated}\n")
+        print(f"Caption: {generated}\n")
 
     @torch.no_grad()
     def calculate_losses_and_accuracy(self, iterations: int, batch_size: int):

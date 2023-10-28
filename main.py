@@ -1,9 +1,9 @@
 import os
 
-from tokenizer import Tokenizer
-from feature_extractor import FeatureExtractor
-from dataset import Sharder
-from train import Trainer
+from image_captioning.tokenizer import Tokenizer
+from image_captioning.feature_extractor import FeatureExtractor
+from image_captioning.dataset import Sharder
+from image_captioning.train import Trainer
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 def main():
     paths = {
         "dataset_folder": "dataset",
-        "sample_images_folder": "imgs",
+        "sample_images_folder": "sample_images",
         "checkpoints_folder": "checkpoints",
         "summary_folder": "summary"
     }
@@ -27,7 +27,6 @@ def main():
     with open(paths["captions"], "r") as f:
         raw_file = f.read()
 
-    # Head size should be equal to embeddings_number // heads_number
     hyperparameters = {
         "batches": 32,
         "split_lengths": (.7, .2, .1),
@@ -50,7 +49,7 @@ def main():
     tk = Tokenizer(raw_file, paths["images"], reduce=True)
     batches = hyperparameters["batches"]
     sh = Sharder(tk, fe, batch_size=batches, shard_size=2000, device=hyperparameters["device"])
-    sh.save_shards()
+    # sh.save_shards()
     wr = SummaryWriter(paths["summary_folder"])
 
     # Updating dependent hyperparameters

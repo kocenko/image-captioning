@@ -21,20 +21,14 @@ class Tokenizer:
         max_length (int): the maximum length of the caption (including start and end tokens)
     """
 
-    empty_token = ''
-    start_token = '<start>'
-    end_token = '<end>'
-    unknown_token = '<unknown>'
+    empty_token = ""
+    start_token = "<start>"
+    end_token = "<end>"
+    unknown_token = "<unknown>"
 
     base_tokens = [empty_token, start_token, end_token, unknown_token]
 
-    def __init__(
-            self,
-            raw_text: str,
-            images_folder: str,
-            standardize: bool = True,
-            reduce: bool = False
-    ) -> None:
+    def __init__(self, raw_text: str, images_folder: str, standardize: bool = True, reduce: bool = False) -> None:
         """
         Initializes tokenizer's attributes
 
@@ -75,8 +69,8 @@ class Tokenizer:
         Returns:
             Standardized string
         """
-        punctuation = string.punctuation.replace('<', '').replace('>', '')
-        line = line.translate(str.maketrans('', '', punctuation))  # Removing punctuation
+        punctuation = string.punctuation.replace("<", "").replace(">", "")
+        line = line.translate(str.maketrans("", "", punctuation))  # Removing punctuation
         line = line.lower()
         line = line.strip()
         return line
@@ -103,11 +97,11 @@ class Tokenizer:
             raise AttributeError("Captions have been already extracted from the raw text.")
 
         for line in self.raw_text.splitlines():
-            raw_caption = line.split('\t', 1)
+            raw_caption = line.split("\t", 1)
             if len(raw_caption) < 2:
                 raise ValueError("Improper line format")
 
-            self.image_paths.append(os.path.join(self.images_folder, raw_caption[0].split('.')[0] + ".jpg"))
+            self.image_paths.append(os.path.join(self.images_folder, raw_caption[0].split(".")[0] + ".jpg"))
 
             caption = f"{Tokenizer.start_token} {raw_caption[1]} {Tokenizer.end_token}"
             if self.standardize:
@@ -176,17 +170,17 @@ class Tokenizer:
         Returns:
             String constructed from tokens of the given indices
         """
-        return ' '.join([self.decode_map[token] for token in list_to_decode])
+        return " ".join([self.decode_map[token] for token in list_to_decode])
 
 
-if __name__ == '__main__':
-    file_path = 'dataset/captions.txt'
-    folder = 'dataset/images/'
+if __name__ == "__main__":
+    file_path = "dataset/captions.txt"
+    folder = "dataset/images/"
 
     with open(file_path, "r") as f:
         raw_file = f.read()
 
     tokenizer = Tokenizer(raw_file, folder, reduce=True)
 
-    print(tokenizer.encode('<START> I am going to work <END>', pad=False))
+    print(tokenizer.encode("<START> I am going to work <END>", pad=False))
     print(tokenizer.decode([1, 10, 20, 4, 28, 2]))
