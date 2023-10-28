@@ -58,7 +58,7 @@ class MultiHeadAttention(nn.Module):
         if self.mask_out:
             affinities = affinities.masked_fill(self.masking_triangle[:, :, key_T, :key_T] == 0, float("-inf"))
         affinities = F.softmax(affinities, dim=-1)
-        if self.train:
+        if self.training:
             affinities = self.attention_dropout(affinities)
         self.last_attention_scores = affinities
 
