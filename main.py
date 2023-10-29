@@ -5,6 +5,7 @@ from image_captioning.feature_extractor import FeatureExtractor
 from image_captioning.dataset import Sharder
 from image_captioning.train import Trainer
 
+import torch
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -37,19 +38,22 @@ def main():
         "epochs": 20,
         "blocks_number": 2,
         "heads_number": 2,
-        "net_slice_index": "layers.15",
+        "net_slice_index": "features.12",
         "eval_iterations": 10,
         "eval_per_epoch": 10,
         "device": "cpu"
     }
 
-    fe = FeatureExtractor(model_name="mnasnet0_75", device=hyperparameters["device"])
+    if torch.cuda.is_available():
+        hyperparameters["device"] = "cuda"
+        print("Will be using CUDA!!!")
+
+    fe = FeatureExtractor(model_name="mobilenet", device=hyperparameters["device"])
     if hyperparameters["net_slice_index"]:
         fe.slice_net(hyperparameters["net_slice_index"], overwrite_model=True)
     tk = Tokenizer(raw_file, paths["images"], reduce=True)
     batches = hyperparameters["batches"]
     sh = Sharder(tk, fe, batch_size=batches, shard_size=2000, device=hyperparameters["device"])
-    # sh.save_shards()
     wr = SummaryWriter(paths["summary_folder"])
 
     # Updating dependent hyperparameters
