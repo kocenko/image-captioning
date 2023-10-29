@@ -28,14 +28,9 @@ class Sharder:
         self.split_ratio = split_ratio
         self.device: Any = torch.device(device)
         self.split_indexes = {}
+        self.shard_folders = ["../shards/train", "../shards/valid", "../shards/test"]
 
         self.set_split_indexes()
-
-        # Create directories
-        self.shard_folders = ["shards/train", "shards/valid", "shards/test"]
-        for split in self.shard_folders:
-            if not os.path.exists(split):
-                os.makedirs(split)
 
     @staticmethod
     def split_evenly(list_size: int, elements_per_group: int) -> list[Any]:
@@ -81,9 +76,8 @@ class Sharder:
                 print(f"Deleted {file}")
 
     def load_and_transform_caption(self, captions: list[str]) -> torch.Tensor:
-        tokenized_captions = [self.tokenizer.encode(caption) for caption in captions]
-        tokenized_caption = torch.tensor(tokenized_captions, device=self.device)
-        return tokenized_caption
+        nested = [torch.tensor(self.tokenizer.encode(caption), device=self.device) for caption in captions]
+        return nested
 
     def load_and_transform_image(self, paths: list[str]) -> torch.Tensor:
         transformed = None
@@ -105,6 +99,11 @@ class Sharder:
         Args:
             override (bool): whether to delete existing shards before creating new ones
         """
+
+        # Create directories
+        for split in self.shard_folders:
+            if not os.path.exists(split):
+                os.makedirs(split)
 
         if override:
             self.__empty_directory()
@@ -130,7 +129,7 @@ class ImageCaptionDataset(Dataset):
         labels (torch.Tensor): tensor with expected captions (tokenized)
     """
 
-    def __init__(self, shard_path: str, device: Any) -> None:
+    def __init__(self, shard_path: str, batch_size: int, device: Any) -> None:
         """
         Dataset initialization
 
@@ -138,10 +137,9 @@ class ImageCaptionDataset(Dataset):
             shard_path (str): path to the shard file
         """
 
-        img, cap = torch.load(shard_path, map_location=device)
-        self.image_features = img
-        self.captions = cap[:, :-1]
-        self.labels = cap[:, 1:]
+        self.img, self.cap = torch.load(shard_path, map_location=device)
+        indexes = random.sample(range(len(self.cap)), len(self.cap))
+        self.batches_indexes = [indexes[i:i + batch_size] for i in range(0, len(indexes), batch_size)]
 
     def __len__(self) -> int:
         """
@@ -149,11 +147,11 @@ class ImageCaptionDataset(Dataset):
              Length of the dataset
         """
 
-        return len(self.captions)
+        return len(self.cap)
 
     def __getitem__(self, item: int):
         """
-        Fetches a sample of the given index
+        Fetches a batch of the given index
 
         Args:
              item (int): index of the sample to return
@@ -162,10 +160,10 @@ class ImageCaptionDataset(Dataset):
             A tuple with three elements: tensor of the transformed image and tokenized input and output (label) captions
         """
 
-        transformed_image = self.image_features[item]
-        input_caption = self.captions[item]
-        label_caption = self.labels[item]
-        return transformed_image, input_caption, label_caption
+        batch_idx = self.batches_indexes[item]
+        image_batch = torch.stack([self.img[i] for i in batch_idx])
+        caption_batch = torch.nn.utils.rnn.pad_sequence([self.cap[i] for i in batch_idx], batch_first=True)
+        return image_batch, caption_batch[:, :-1], caption_batch[:, 1:]
 
 
 def custom_dataloader(split_name: str, sharder: Sharder, batch_size: int):
@@ -174,9 +172,8 @@ def custom_dataloader(split_name: str, sharder: Sharder, batch_size: int):
     shard_files = [file for file in os.listdir(shard_folder)]
 
     for shard_file in shard_files:
-        dataset = ImageCaptionDataset(os.path.join(shard_folder, shard_file), sharder.device)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        for img, caption, label in dataloader:
+        dataset = ImageCaptionDataset(os.path.join(shard_folder, shard_file), batch_size, sharder.device)
+        for img, caption, label in dataset:
             yield img, caption, label
 
 

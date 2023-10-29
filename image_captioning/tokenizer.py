@@ -75,19 +75,6 @@ class Tokenizer:
         line = line.strip()
         return line
 
-    def __pad(self, token_list: list[int]) -> list[int]:
-        """
-        Pads the input list to the maximum length
-
-        Args:
-            token_list (list[int]): input token list to pad.
-
-        Returns:
-            Input list padded with empty tokens to the size of max_length
-        """
-
-        return token_list + (self.max_length - len(token_list)) * [self.encode_map[Tokenizer.empty_token]]
-
     def __extract_captions(self) -> None:
         """
         Method used to parse the input text
@@ -130,7 +117,7 @@ class Tokenizer:
         self.encode_map = {token: i for i, token in enumerate(self.word_list)}
         self.decode_map = {i: token for i, token in enumerate(self.word_list)}
 
-    def encode(self, line_to_encode: str, pad: bool = True) -> list[int]:
+    def encode(self, line_to_encode: str) -> list[int]:
         """
         Method used to encode the given string into the list of token indices.
 
@@ -154,9 +141,6 @@ class Tokenizer:
                 output_list.append(self.encode_map[word])
             else:
                 output_list.append(self.encode_map[Tokenizer.unknown_token])
-
-        if pad:
-            output_list = self.__pad(output_list)
 
         return output_list
 
@@ -182,5 +166,5 @@ if __name__ == "__main__":
 
     tokenizer = Tokenizer(raw_file, folder, reduce=True)
 
-    print(tokenizer.encode("<START> I am going to work <END>", pad=False))
+    print(tokenizer.encode("<START> I am going to work <END>"))
     print(tokenizer.decode([1, 10, 20, 4, 28, 2]))

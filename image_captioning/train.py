@@ -126,7 +126,7 @@ class Trainer:
         """
         b, t, c = predictions.shape
         predictions = predictions.view(b * t, c)
-        labels = labels.view(b * t)
+        labels = labels.reshape(b * t)
 
         loss = F.cross_entropy(predictions, labels, reduction="none")
 
