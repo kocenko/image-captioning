@@ -164,7 +164,7 @@ class ImageCaptionDataset(Dataset):
 
         self.img, self.cap = torch.load(shard_path, map_location=device)
         indexes = random.sample(range(len(self.cap)), len(self.cap))
-        self.batches_indexes = [indexes[i : i + batch_size] for i in range(0, len(indexes), batch_size)]
+        self.batches_indexes = [indexes[i: i + batch_size] for i in range(0, len(indexes), batch_size)]
 
     def __len__(self) -> int:
         """
@@ -193,6 +193,7 @@ class ImageCaptionDataset(Dataset):
 
 def custom_dataloader(split_name: str, sharder: Sharder, batch_size: int):
     shard_files = sharder.shards_names[split_name]
+    random.shuffle(shard_files)
 
     for shard_file in shard_files:
         dataset = ImageCaptionDataset(shard_file, batch_size, sharder.device)

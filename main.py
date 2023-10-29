@@ -32,7 +32,7 @@ def main():
         "blocks_number": 2,
         "heads_number": 2,
         "net_slice_index": "features.12",
-        "eval_iterations": 10,
+        "eval_iterations": 20,
         "eval_per_epoch": 10,
         "device": "cpu"
     }
@@ -47,23 +47,26 @@ def main():
 
     tk = Tokenizer([caption for _, caption in train_ds])
     sh = Sharder(tk, fe, batch_size=hyperparameters["batches"], shard_size=2000, device=hyperparameters["device"])
-    sh.load_shards(["shards/train", "shards/valid", "shards/test"], ["train", "valid", "test"])
+    sh.save_shards(train_ds, "train", "shards/train")
+    sh.save_shards(valid_ds, "valid", "shards/valid")
+    sh.save_shards(test_ds, "test", "shards/test")
+    # sh.load_shards(["shards/train", "shards/valid", "shards/test"], ["train", "valid", "test"])
 
-    # # Updating dependent hyperparameters
-    # hyperparameters["vocabulary_size"] = len(tk.word_list)
-    # hyperparameters["context_length"] = tk.max_length
-    # hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image).unsqueeze(0)).shape[1]
-    # hyperparameters["word_count"] = tk.counter
-    # hyperparameters["encode_map"] = tk.encode_map
-    #
-    # # Preparing folders for logging
-    # for path in [checkpoints_folder, summary_folder]:
-    #     if not os.path.exists(path):
-    #         os.makedirs(path)
-    #
-    # wr = SummaryWriter(summary_folder)
-    # trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
-    # trainer.train()
+    # Updating dependent hyperparameters
+    hyperparameters["vocabulary_size"] = len(tk.word_list)
+    hyperparameters["context_length"] = tk.max_length
+    hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image).unsqueeze(0)).shape[1]
+    hyperparameters["word_count"] = tk.counter
+    hyperparameters["encode_map"] = tk.encode_map
+
+    # Preparing folders for logging
+    for path in [checkpoints_folder, summary_folder]:
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+    wr = SummaryWriter(summary_folder)
+    trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
+    trainer.train()
 
 
 if __name__ == "__main__":

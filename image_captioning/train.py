@@ -226,12 +226,13 @@ class Trainer:
         if checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        all_iters = sum([len(l) for l in self.sharder.split_indexes["train"]]) // batch_size
+        all_iters = len(self.sharder.shards_names["train"]) * self.sharder.shard_size // batch_size
         eval_each = all_iters // min(all_iters, eval_per_epoch)
 
         for e in range(current_epoch, number_of_epochs):
             print(f"Epoch {e + 1}/{number_of_epochs}")
             train_dataloader = custom_dataloader("train", self.sharder, batch_size=batch_size)
+
             for i, (x1, x2, y) in (loading_bar := tqdm.tqdm(enumerate(train_dataloader), colour="00ff00")):
                 if i % eval_each == 0:
                     losses, accuracy = self.calculate_losses_and_accuracy(eval_iterations, batch_size)
