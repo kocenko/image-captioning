@@ -1,4 +1,3 @@
-import math
 from collections import Counter
 from typing import Tuple, Optional
 
@@ -48,12 +47,17 @@ class MultiHeadAttention(nn.Module):
         query_B, query_T, query_C = query.shape
 
         # Output shapes: [B, heads_num, T, heads_size]
-        query_vector = self.queries_weights(query).view(query_B, query_T, self.heads_number, -1).transpose(1, 2)
-        key_vector = self.keys_weights(key).view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
-        value_vector = self.values_weights(value).view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
+        query_vector = self.queries_weights(query)
+        key_vector = self.keys_weights(key)
+        value_vector = self.values_weights(value)
+
+        # Reshaping
+        query_vector = query_vector.view(query_B, query_T, self.heads_number, -1).transpose(1, 2)
+        key_vector = key_vector.view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
+        value_vector = value_vector.view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
 
         # Affinities shape: [B, heads_num, T, T]
-        affinities = torch.matmul(query_vector, key_vector.transpose(-2, -1)) / math.sqrt(key_C)
+        affinities = torch.matmul(query_vector, key_vector.transpose(-2, -1)) / torch.sqrt(key_C)
 
         if self.mask_out:
             affinities = affinities.masked_fill(self.masking_triangle[:, :, key_T, :key_T] == 0, float("-inf"))
@@ -192,7 +196,7 @@ class Decoder(nn.Module):
         # Embeddings (with positional)
         self.image_flattener = EncoderBlock()
         self.embedding = TokenEmbedding(**kwargs)
-        self.blocks = [TransformerBlock(**kwargs) for _ in range(self.blocks_number)]
+        self.blocks = nn.ModuleList([TransformerBlock(**kwargs) for _ in range(self.blocks_number)])
         self.layer_normalization = nn.LayerNorm(embeddings_number, device=self.device)
         self.output_layer = DecoderOutputLayer(**kwargs)
 
