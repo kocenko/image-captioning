@@ -46,25 +46,24 @@ def main():
         fe.slice_net(hyperparameters["net_slice_index"], overwrite_model=True)
 
     tk = Tokenizer([caption for _, caption in train_ds])
+    sh = Sharder(tk, fe, batch_size=hyperparameters["batches"], shard_size=2000, device=hyperparameters["device"])
+    sh.load_shards(["shards/train", "shards/valid", "shards/test"], ["train", "valid", "test"])
 
-    batches = hyperparameters["batches"]
-    sh = Sharder(tk, fe, batch_size=batches, shard_size=2000, device=hyperparameters["device"])
-    wr = SummaryWriter(summary_folder)
-
-    # Updating dependent hyperparameters
-    hyperparameters["vocabulary_size"] = len(tk.word_list)
-    hyperparameters["context_length"] = tk.max_length
-    hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image).unsqueeze(0)).shape[1]
-    hyperparameters["word_count"] = tk.counter
-    hyperparameters["encode_map"] = tk.encode_map
-
-    # Preparing folders for logging
-    for path in [checkpoints_folder, summary_folder]:
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-    trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
-    trainer.train()
+    # # Updating dependent hyperparameters
+    # hyperparameters["vocabulary_size"] = len(tk.word_list)
+    # hyperparameters["context_length"] = tk.max_length
+    # hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image).unsqueeze(0)).shape[1]
+    # hyperparameters["word_count"] = tk.counter
+    # hyperparameters["encode_map"] = tk.encode_map
+    #
+    # # Preparing folders for logging
+    # for path in [checkpoints_folder, summary_folder]:
+    #     if not os.path.exists(path):
+    #         os.makedirs(path)
+    #
+    # wr = SummaryWriter(summary_folder)
+    # trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
+    # trainer.train()
 
 
 if __name__ == "__main__":

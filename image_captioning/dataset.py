@@ -129,7 +129,8 @@ class Sharder:
             self.__empty_directory(dest_folder)
 
         for i, shard in enumerate(tqdm.tqdm(self.split_evenly(len(dataset), self.shard_size))):
-            image_paths, captions = dataset[shard]
+            image_paths = [img for img, _ in dataset[shard]]
+            captions = [cap for _, cap in dataset[shard]]
 
             cap = self.load_and_transform_caption(captions)
             img = self.load_and_transform_image(image_paths)
@@ -137,6 +138,10 @@ class Sharder:
             path_to_new_shard = os.path.join(dest_folder, f"{shard_name}_shard_{i}.pt")
             self.shards_names[shard_name].append(path_to_new_shard)
             torch.save((img, cap), path_to_new_shard)
+
+    def load_shards(self, shard_folders: list[str], shard_names: list[str]) -> None:
+        for folder, name in zip(shard_folders, shard_names):
+            self.shards_names[name] = [os.path.join(folder, file) for file in os.listdir(folder)]
 
 
 class ImageCaptionDataset(Dataset):
