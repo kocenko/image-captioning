@@ -2,7 +2,7 @@ import os
 
 from image_captioning.tokenizer import Tokenizer
 from image_captioning.feature_extractor import FeatureExtractor
-from image_captioning.dataset import Sharder
+from image_captioning.dataset import Sharder, load_flickr8k
 from image_captioning.train import Trainer
 
 import torch
@@ -10,23 +10,16 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def main():
-    paths = {
-        "dataset_folder": "dataset",
-        "sample_images_folder": "sample_images",
-        "checkpoints_folder": "checkpoints",
-        "summary_folder": "summary"
-    }
-    paths["images"] = os.path.join(paths["dataset_folder"], "images")
-    paths["captions"] = os.path.join(paths["dataset_folder"], "captions.txt")
-    paths["sample_image"] = os.path.join(paths["sample_images_folder"], "surfing.jpg")
+    tokens_path = "../dataset/Flickr8k.token.txt"
+    train_path = "../dataset/Flickr_8k.trainImages.txt"
+    valid_path = "../dataset/Flickr_8k.devImages.txt"
+    test_path = "../dataset/Flickr_8k.testImages.txt"
+    images_path = "../dataset/images"
+    sample_image = "./sample_images/surfing.jpg"
+    checkpoints_folder = "./checkpoints"
+    summary_folder = "./summary"
 
-    folders = [paths["dataset_folder"], paths["images"], paths["summary_folder"], paths["checkpoints_folder"]]
-    for path in folders:
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-    with open(paths["captions"], "r") as f:
-        raw_file = f.read()
+    train_ds, valid_ds, test_ds = load_flickr8k(tokens_path, train_path, valid_path, test_path, images_path)
 
     hyperparameters = {
         "batches": 32,
@@ -51,19 +44,26 @@ def main():
     fe = FeatureExtractor(model_name="mobilenet", device=hyperparameters["device"])
     if hyperparameters["net_slice_index"]:
         fe.slice_net(hyperparameters["net_slice_index"], overwrite_model=True)
-    tk = Tokenizer(raw_file, paths["images"], reduce=True)
+
+    tk = Tokenizer([caption for _, caption in train_ds])
+
     batches = hyperparameters["batches"]
     sh = Sharder(tk, fe, batch_size=batches, shard_size=2000, device=hyperparameters["device"])
-    wr = SummaryWriter(paths["summary_folder"])
+    wr = SummaryWriter(summary_folder)
 
     # Updating dependent hyperparameters
     hyperparameters["vocabulary_size"] = len(tk.word_list)
     hyperparameters["context_length"] = tk.max_length
-    hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(paths["sample_image"]).unsqueeze(0)).shape[1]
+    hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image).unsqueeze(0)).shape[1]
     hyperparameters["word_count"] = tk.counter
     hyperparameters["encode_map"] = tk.encode_map
 
-    trainer = Trainer(tk, fe, sh, paths["checkpoints_folder"], paths["sample_image"], wr, hyperparameters)
+    # Preparing folders for logging
+    for path in [checkpoints_folder, summary_folder]:
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+    trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
     trainer.train()
 
 

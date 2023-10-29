@@ -1,6 +1,6 @@
-import os
 import string
 from collections import Counter
+from typing import Optional
 
 
 class Tokenizer:
@@ -8,16 +8,11 @@ class Tokenizer:
     Class used for parsing dataset captions' file and tokenizing
 
     Attributes:
-        raw_text (str): text containing lines of pairs (image_name, caption) formatted like: name.jpg#num \t caption
-        images_folder (str): path to the folder containing images
-        image_paths (list[str]): list of paths to the image files
         captions (list[str]): list of the captions
         word_list (list): list of ordered set of all word tokens
         counter (counter): keeps track of tokens count
         encode_map (dict): dict used to map tokens to indices
         decode_map (dict): dict used to map indices to tokens
-        __standardize (bool): whether to transform the caption (like replacing symbols and converting to lowercase)
-        __reduce (bool): whether to remove elements from the vocabulary based on some rule
         max_length (int): the maximum length of the caption (including start and end tokens)
     """
 
@@ -28,33 +23,24 @@ class Tokenizer:
 
     base_tokens = [empty_token, start_token, end_token, unknown_token]
 
-    def __init__(self, raw_text: str, images_folder: str, standardize: bool = True, reduce: bool = False) -> None:
+    def __init__(self, captions: list[str], vocabulary_size: Optional[int] = 5000) -> None:
         """
         Initializes tokenizer's attributes
 
         Args:
-            raw_text (str): text containing lines of pairs (image_name, caption) formatted like: name.jpg#num \t caption
-            images_folder (str): path to the folder containing images
-            standardize (bool): whether to transform the caption (like replacing symbols and converting to lowercase)
-            reduce (bool): whether to remove elements from the vocabulary based on some rule
+            captions (list[str]): list of captions
+            vocabulary_size (int): vocabulary size after reduction
         """
 
-        self.raw_text: str = raw_text
-        self.images_folder: str = images_folder
-        self.image_paths: list[str] = []
-        self.captions: list[str] = []
         self.word_list: list[str] = [Tokenizer.empty_token, Tokenizer.unknown_token]  # Because it is not read from data
         self.counter: Counter = Counter()
         self.encode_map: dict = dict()
         self.decode_map: dict = dict()
-        self.__standardize: bool = standardize
-        self.__reduce: bool = reduce
-
-        self.__extract_captions()
+        self.captions: list[str] = self.prepare_captions(captions)
         self.max_length: int = len(max(self.captions, key=len))
 
-        if self.__reduce:
-            self.__reduce_vocabulary()
+        if vocabulary_size:
+            self.reduce_vocabulary(vocabulary_size)
 
         self.__create_mappings()
 
@@ -69,44 +55,32 @@ class Tokenizer:
         Returns:
             Standardized string
         """
-        punctuation = string.punctuation.replace("<", "").replace(">", "")
-        line = line.translate(str.maketrans("", "", punctuation))  # Removing punctuation
+        line = line.translate(str.maketrans("", "", string.punctuation))
         line = line.lower()
-        line = line.strip()
+        line = f"{Tokenizer.start_token} {line} {Tokenizer.end_token}"
         return line
 
-    def __extract_captions(self) -> None:
+    def prepare_captions(self, captions: list[str]) -> list[str]:
         """
-        Method used to parse the input text
+        Method used to standardize captions and prepare word list and counter
         """
-
-        if len(self.captions) > 0:
-            raise AttributeError("Captions have been already extracted from the raw text.")
-
-        for line in self.raw_text.splitlines():
-            raw_caption = line.split("\t", 1)
-            if len(raw_caption) < 2:
-                raise ValueError("Improper line format")
-
-            self.image_paths.append(os.path.join(self.images_folder, raw_caption[0].split(".")[0] + ".jpg"))
-
-            caption = f"{Tokenizer.start_token} {raw_caption[1]} {Tokenizer.end_token}"
-            if self.standardize:
-                caption = self.standardize(caption)
-
+        output_captions = []
+        for raw_caption in captions:
+            caption = self.standardize(raw_caption)
             self.counter.update(caption.split())
-            self.captions.append(caption)
+            output_captions.append(caption)
 
         self.word_list.extend([word for word, count in sorted(self.counter.items(), key=lambda x: x[1], reverse=True)])
+        return output_captions
 
-    def __reduce_vocabulary(self, vocab_size: int = 5000) -> None:
+    def reduce_vocabulary(self, vocab_size: int) -> None:
         """
         Reduces the vocabulary to the given size
 
         Args:
             vocab_size (int): size of the vocabulary list on output
         """
-
+        assert vocab_size >= 2, "Vocabulary size after reduction cannot be less than 2 because of base tokens"
         self.word_list = self.word_list[:vocab_size]
         self.counter = Counter(dict(self.counter.most_common(vocab_size - 2)))  # Leaving place for empty and unknown
 
@@ -123,11 +97,10 @@ class Tokenizer:
 
         Note:
             The input does not have to start with <start> and end with <end>.
-            Padding with those tokens should be handled before passing string to this method
+            Padding these tokens should be handled after this method
 
         Args:
             line_to_encode (str): string to encode
-            pad (bool): should the outcome be padded
 
         Returns:
             A list of tokens' indices corresponding to the given string input.
@@ -158,13 +131,4 @@ class Tokenizer:
 
 
 if __name__ == "__main__":
-    file_path = "dataset/captions.txt"
-    folder = "dataset/images/"
-
-    with open(file_path, "r") as f:
-        raw_file = f.read()
-
-    tokenizer = Tokenizer(raw_file, folder, reduce=True)
-
-    print(tokenizer.encode("<START> I am going to work <END>"))
-    print(tokenizer.decode([1, 10, 20, 4, 28, 2]))
+    pass
