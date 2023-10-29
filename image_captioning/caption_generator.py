@@ -70,7 +70,7 @@ class CaptionGenerator:
 
         max_size = min(max_size, self.tokenizer.max_length)
 
-        generated_caption = self.tokenizer.encode(self.tokenizer.start_token)
+        generated_caption = [self.tokenizer.encode_map[self.tokenizer.start_token]]
         generated_caption = torch.tensor(generated_caption, device=self.device).unsqueeze(0)
 
         image = self.__preprocess_image(image_path).unsqueeze(0)
@@ -87,7 +87,7 @@ class CaptionGenerator:
 
             generated_caption = torch.cat([generated_caption, new_token], dim=1)
             
-            if new_token[0].tolist() == self.tokenizer.encode(Tokenizer.end_token):
+            if new_token[0].tolist() == [self.tokenizer.encode_map[Tokenizer.end_token]]:
                 break
 
         caption_list = generated_caption[0].tolist()

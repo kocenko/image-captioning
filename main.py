@@ -10,11 +10,11 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def main():
-    tokens_path = "../dataset/Flickr8k.token.txt"
-    train_path = "../dataset/Flickr_8k.trainImages.txt"
-    valid_path = "../dataset/Flickr_8k.devImages.txt"
-    test_path = "../dataset/Flickr_8k.testImages.txt"
-    images_path = "../dataset/images"
+    tokens_path = "./dataset/Flickr8k.token.txt"
+    train_path = "./dataset/Flickr_8k.trainImages.txt"
+    valid_path = "./dataset/Flickr_8k.devImages.txt"
+    test_path = "./dataset/Flickr_8k.testImages.txt"
+    images_path = "./dataset/images"
     sample_image = "./sample_images/surfing.jpg"
     checkpoints_folder = "./checkpoints"
     summary_folder = "./summary"
@@ -28,7 +28,7 @@ def main():
         "embeddings_number": 256,
         "dropout_rate": 0.5,
         "learning_rate": 1e-4,
-        "epochs": 20,
+        "epochs": 50,
         "blocks_number": 2,
         "heads_number": 2,
         "net_slice_index": "features.12",
@@ -47,10 +47,10 @@ def main():
 
     tk = Tokenizer([caption for _, caption in train_ds])
     sh = Sharder(tk, fe, batch_size=hyperparameters["batches"], shard_size=2000, device=hyperparameters["device"])
-    sh.save_shards(train_ds, "train", "shards/train")
-    sh.save_shards(valid_ds, "valid", "shards/valid")
-    sh.save_shards(test_ds, "test", "shards/test")
-    # sh.load_shards(["shards/train", "shards/valid", "shards/test"], ["train", "valid", "test"])
+    # sh.save_shards(train_ds, "train", "shards/train")
+    # sh.save_shards(valid_ds, "valid", "shards/valid")
+    # sh.save_shards(test_ds, "test", "shards/test")
+    sh.load_shards(["shards/train", "shards/valid", "shards/test"], ["train", "valid", "test"])
 
     # Updating dependent hyperparameters
     hyperparameters["vocabulary_size"] = len(tk.word_list)
