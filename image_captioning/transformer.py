@@ -1,3 +1,4 @@
+import math
 from collections import Counter
 from typing import Tuple, Optional
 
@@ -57,7 +58,8 @@ class MultiHeadAttention(nn.Module):
         value_vector = value_vector.view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
 
         # Affinities shape: [B, heads_num, T, T]
-        affinities = torch.matmul(query_vector, key_vector.transpose(-2, -1)) / torch.sqrt(key_C)
+        affinities = query_vector @ key_vector.transpose(-2, -1)
+        affinities /= math.sqrt(key_C)
 
         if self.mask_out:
             affinities = affinities.masked_fill(self.masking_triangle[:, :, key_T, :key_T] == 0, float("-inf"))
