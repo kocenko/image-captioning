@@ -7,6 +7,7 @@ from typing import Dict, Optional, Tuple
 import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
+from torcheval.metrics.functional.text.bleu import bleu_score
 
 from image_captioning.transformer import Decoder
 from image_captioning.caption_generator import CaptionGenerator
@@ -112,8 +113,7 @@ class Trainer:
 
         return timestamp_files[max(timestamp_files, key=timestamp_files.get)]
 
-    @staticmethod
-    def __calc_single_loss(predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def __calc_single_loss(self, predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         """
         Calculates a loss of a single predictions-labels pair
 
@@ -124,27 +124,27 @@ class Trainer:
         Returns:
             Tensor as an output of the cross entropy with logarithmic softmax. Calculated for the whole batch.
         """
-        b, t, c = predictions.shape
-        predictions = predictions.view(b * t, c)
-        labels = labels.reshape(b * t)
 
+        predictions = predictions.transpose(-2, -1)
         loss = F.cross_entropy(predictions, labels, reduction="none")
 
-        mask = (labels != 0) & (loss < 1e8)
+        mask = (labels != self.tokenizer.encode_map[Tokenizer.empty_token]) & (loss < 1e8)
         mask = mask.float()
 
         loss = loss * mask
         loss = torch.sum(loss) / torch.sum(mask)
         return loss
 
-    @staticmethod
-    def __calc_masked_accuracy(logits: torch.Tensor, labels: torch.Tensor) -> torch.float32:
-        mask = labels != 0
+    def __calc_bleu(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.float32:
+        mask = (labels != self.tokenizer.encode_map[Tokenizer.empty_token])
         predictions = torch.argmax(logits, dim=-1)
-        labels = labels.to(torch.int64)
-        match = (predictions == labels).to(mask.dtype)
-        acc = torch.sum(match * mask) / torch.sum(mask)
-        return acc
+        
+        predictions *= mask
+        labels *= mask
+        candidates = [self.tokenizer.decode(sentence.tolist()) for sentence in predictions]
+        references = [self.tokenizer.decode(sentence.tolist()) for sentence in labels]
+
+        return bleu_score(candidates, references, n_gram=4)
 
     def __on_epoch_end(
         self, current_epoch: int, number_of_epochs: int, optimizer: torch.optim.AdamW, progress_path: str
@@ -174,7 +174,14 @@ class Trainer:
         captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, self.device)
         generated = captioner.generate(self.sample_image_path, max_size=30)
         self.writer.add_text("caption", generated, e)
-        print(f"Caption: {generated}\n")
+
+        print(f"""
+
+        {captioner.generate(self.sample_image_path, max_size=30, temperature=0)}
+        {captioner.generate(self.sample_image_path, max_size=30, temperature=0.5)}
+        {captioner.generate(self.sample_image_path, max_size=30, temperature=1)}
+
+        """)
 
     @torch.no_grad()
     def calculate_losses_and_accuracy(self, iterations: int, batch_size: int):
@@ -191,7 +198,7 @@ class Trainer:
                 image, caption, label = image.to(self.device), caption.to(self.device), label.to(self.device)
                 logits = self.decoder(image, caption).to(self.device)
                 loss = self.__calc_single_loss(logits, label)
-                acc = self.__calc_masked_accuracy(logits, label)
+                acc = self.__calc_bleu(logits, label)
                 losses[i] = loss.item()
                 accuracies[i] = acc.item()
 
