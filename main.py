@@ -1,12 +1,37 @@
 import os
 
+from image_captioning.transformer import Decoder
 from image_captioning.tokenizer import Tokenizer
 from image_captioning.feature_extractor import FeatureExtractor
-from image_captioning.dataset import Sharder, load_flickr8k
+from image_captioning.dataset import Sharder, load_flickr8k, custom_dataloader
 from image_captioning.train import Trainer
 
 import torch
+import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
+
+
+def calc_single_loss(tk, predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    """
+    Calculates a loss of a single predictions-labels pair
+
+    Args:
+        predictions (Tensor): captions as an output from the decoder (as logits)
+        labels (Tensor): ground truth captions
+
+    Returns:
+        Tensor as an output of the cross entropy with logarithmic softmax. Calculated for the whole batch.
+    """
+
+    predictions = predictions.transpose(-2, -1)
+    loss = F.cross_entropy(predictions, labels, reduction="none")
+
+    mask = (labels != tk.encode_map[Tokenizer.empty_token]) & (loss < 1e8)
+    mask = mask.float()
+
+    loss = loss * mask
+    loss = torch.sum(loss) / torch.sum(mask)
+    return loss
 
 
 def main():
@@ -64,9 +89,23 @@ def main():
         if not os.path.exists(path):
             os.makedirs(path)
 
-    wr = SummaryWriter(summary_folder)
-    trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
-    trainer.train()
+    dc = Decoder(**hyperparameters)
+    loader = custom_dataloader('train', sh, hyperparameters["batches"])
+    optimizer = torch.optim.AdamW(dc.parameters(), lr=hyperparameters["learning_rate"])
+
+    device = hyperparameters["device"]
+    for (x1, x2, y) in loader:
+        x1, x2, y = x1.to(device), x2.to(device), y.to(device)
+        optimizer.zero_grad(set_to_none=True)
+        logits = dc(x1, x2)
+        loss = calc_single_loss(tk, logits, y)
+        print(loss.item())
+        loss.backward()
+        optimizer.step()
+
+    # wr = SummaryWriter(summary_folder)
+    # trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
+    # trainer.train()
 
 
 if __name__ == "__main__":
