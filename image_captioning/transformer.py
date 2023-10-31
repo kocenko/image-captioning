@@ -25,9 +25,9 @@ class MultiHeadAttention(nn.Module):
 
         self.heads_number = heads_number
         self.mask_out = mask_out
-        self.queries_weights = nn.Linear(query_input_shape, embeddings_number, bias=False, device=device)
-        self.keys_weights = nn.Linear(key_input_shape, embeddings_number, bias=False, device=device)
-        self.values_weights = nn.Linear(value_input_shape, embeddings_number, bias=False, device=device)
+        self.queries_weights = nn.Linear(query_input_shape, embeddings_number, device=device)
+        self.keys_weights = nn.Linear(key_input_shape, embeddings_number, device=device)
+        self.values_weights = nn.Linear(value_input_shape, embeddings_number, device=device)
         self.register_buffer(
             "masking_triangle",
             torch.tril(torch.ones(context_length, context_length, device=device)).view(
@@ -54,6 +54,8 @@ class MultiHeadAttention(nn.Module):
 
         # Reshaping
         query_vector = query_vector.view(query_B, query_T, self.heads_number, -1).transpose(1, 2)
+        if self.mask_out:
+            np.save('../numpy_logs/torch_query.npy', query_vector.detach().cpu().numpy())
         key_vector = key_vector.view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
         value_vector = value_vector.view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
 
@@ -96,9 +98,9 @@ class TransformerBlock(nn.Module):
 
         # Feed forward
         self.feed_forward = nn.Sequential(
-            nn.Linear(embeddings_number, 2 * embeddings_number, device=device),
+            nn.Linear(embeddings_number, 4 * embeddings_number, device=device),
             nn.ReLU(),
-            nn.Linear(2 * embeddings_number, embeddings_number, device=device),
+            nn.Linear(4 * embeddings_number, embeddings_number, device=device),
             nn.Dropout(dropout_rate),
         )
         self.layer_normalization_3 = nn.LayerNorm(embeddings_number, device=device)
@@ -106,11 +108,18 @@ class TransformerBlock(nn.Module):
 
     def forward(self, image, caption):
         # Note: pre-norm formulation can be used
+        sa = self.self_attention(caption, caption)
+        np.save('../numpy_logs/torch_self_attention.npy', sa.detach().cpu().numpy())
+        np.save('../numpy_logs/torch_attention_scores.npy', self.self_attention.last_attention_scores.detach().cpu().numpy())
         x = torch.add(caption, self.self_attention(caption, caption))
         x = self.layer_normalization_1(x)
 
-        cross_attention = self.cross_attention(x, image)
+        mock_image = torch.ones((32, 49, 576)).to(torch.float).to("cuda")
+        mock_x = torch.ones((32, 20, 256)).to(torch.float).to("cuda")
+        cross_attention = self.cross_attention(mock_x, mock_image)
         self.last_attention_scores = self.cross_attention.last_attention_scores
+        np.save('../numpy_logs/torch_cross_attention.npy', cross_attention.detach().cpu().numpy())
+        np.save('../numpy_logs/torch_cross_attention_scores.npy', self.cross_attention.last_attention_scores.detach().cpu().numpy())
         x = torch.add(x, cross_attention)
         x = self.layer_normalization_2(x)
 
@@ -128,7 +137,7 @@ class TokenEmbedding(nn.Module):
         context_length = kwargs["context_length"]
         self.device = kwargs["device"]
 
-        self.token_embedding_table = nn.Embedding(vocabulary_size, embeddings_number, device=self.device)
+        self.token_embedding_table = nn.Embedding(vocabulary_size, embeddings_number, padding_idx=0, device=self.device)
         self.positional_embedding = nn.Embedding(context_length, embeddings_number, device=self.device)
 
     @staticmethod
@@ -191,7 +200,6 @@ class EncoderBlock(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
-        embeddings_number = kwargs["embeddings_number"]
         self.blocks_number = kwargs["blocks_number"]
         self.device = kwargs["device"]
 
@@ -199,17 +207,19 @@ class Decoder(nn.Module):
         self.image_flattener = EncoderBlock()
         self.embedding = TokenEmbedding(**kwargs)
         self.blocks = nn.ModuleList([TransformerBlock(**kwargs) for _ in range(self.blocks_number)])
-        self.layer_normalization = nn.LayerNorm(embeddings_number, device=self.device)
         self.output_layer = DecoderOutputLayer(**kwargs)
 
     def forward(self, image, caption):
         image = self.image_flattener(image)
+        # np.save('../numpy_logs/torch_flat_image.npy', image.detach().cpu().numpy())
+
         x = self.embedding(caption)
+        # np.save('../numpy_logs/torch_embedding.npy', x.detach().cpu().numpy())
+
 
         for block in self.blocks:
             x = block(image, x)
 
-        # x = self.layer_normalization(x)
         logits = self.output_layer(x)
 
         return logits

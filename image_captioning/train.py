@@ -135,14 +135,14 @@ class Trainer:
         loss = torch.sum(loss) / torch.sum(mask)
         return loss
 
-    def __calc_bleu(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.float32:
-        mask = (labels != self.tokenizer.encode_map[Tokenizer.empty_token])
+    @staticmethod
+    def __calc_masked_accuracy(logits: torch.Tensor, labels: torch.Tensor) -> torch.float32:
+        mask = labels != 0
         predictions = torch.argmax(logits, dim=-1)
-        
-        predictions *= mask
-        labels *= mask
-        candidates = [self.tokenizer.decode(sentence.tolist()) for sentence in predictions]
-        references = [self.tokenizer.decode(sentence.tolist()) for sentence in labels]
+        labels = labels.to(torch.int64)
+        match = (predictions == labels).to(mask.dtype)
+        acc = torch.sum(match * mask) / torch.sum(mask)
+        return acc
 
         return bleu_score(candidates, references, n_gram=4)
 
@@ -198,7 +198,7 @@ class Trainer:
                 image, caption, label = image.to(self.device), caption.to(self.device), label.to(self.device)
                 logits = self.decoder(image, caption).to(self.device)
                 loss = self.__calc_single_loss(logits, label)
-                acc = self.__calc_bleu(logits, label)
+                acc = self.__calc_masked_accuracy(logits, label)
                 losses[i] = loss.item()
                 accuracies[i] = acc.item()
 

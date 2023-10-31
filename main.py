@@ -54,8 +54,9 @@ def main():
         "dropout_rate": 0.5,
         "learning_rate": 1e-4,
         "epochs": 50,
-        "blocks_number": 2,
+        "blocks_number": 1,
         "heads_number": 2,
+        "head_size": 128,
         "net_slice_index": "features.12",
         "eval_iterations": 20,
         "eval_per_epoch": 10,
@@ -89,19 +90,35 @@ def main():
         if not os.path.exists(path):
             os.makedirs(path)
 
+    mock_image = torch.ones((32, 576, 7, 7)).to(torch.float).to("cuda")
+    mock_caption = torch.ones((32, 20)).to(torch.int64).to("cuda")
     dc = Decoder(**hyperparameters)
-    loader = custom_dataloader('train', sh, hyperparameters["batches"])
-    optimizer = torch.optim.AdamW(dc.parameters(), lr=hyperparameters["learning_rate"])
 
-    device = hyperparameters["device"]
-    for (x1, x2, y) in loader:
-        x1, x2, y = x1.to(device), x2.to(device), y.to(device)
-        optimizer.zero_grad(set_to_none=True)
-        logits = dc(x1, x2)
-        loss = calc_single_loss(tk, logits, y)
-        print(loss.item())
-        loss.backward()
-        optimizer.step()
+    for param in dc.parameters():
+        torch.nn.init.constant_(param, 2.0)
+
+    # for name, param in dc.named_parameters():
+    #     if param.requires_grad:
+    #         print(f"{name} --- {param.data.shape}")
+    #         print(param.data.detach().cpu().numpy())
+    #         print()
+    #         print()
+
+    dc(mock_image, mock_caption)
+
+    # loader = custom_dataloader('train', sh, hyperparameters["batches"])
+    # optimizer = torch.optim.AdamW(dc.parameters(), lr=hyperparameters["learning_rate"])
+
+    # device = hyperparameters["device"]
+    # for (x1, x2, y) in loader:
+    #     x1, x2, y = x1.to(device), x2.to(device), y.to(device)
+    #     print(f"{x1.shape} {x2.shape} {y.shape}")
+    #     optimizer.zero_grad(set_to_none=True)
+    #     logits = dc(x1, x2)
+    #     loss = calc_single_loss(tk, logits, y)
+    #     print(loss.item())
+    #     loss.backward()
+    #     optimizer.step()
 
     # wr = SummaryWriter(summary_folder)
     # trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
