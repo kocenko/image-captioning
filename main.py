@@ -53,8 +53,8 @@ def main():
         "embeddings_number": 256,
         "dropout_rate": 0.5,
         "learning_rate": 1e-4,
-        "epochs": 50,
-        "blocks_number": 1,
+        "epochs": 100,
+        "blocks_number": 2,
         "heads_number": 2,
         "head_size": 128,
         "net_slice_index": "features.12",
@@ -90,12 +90,12 @@ def main():
         if not os.path.exists(path):
             os.makedirs(path)
 
-    mock_image = torch.ones((32, 576, 7, 7)).to(torch.float).to("cuda")
-    mock_caption = torch.ones((32, 20)).to(torch.int64).to("cuda")
-    dc = Decoder(**hyperparameters)
+    # mock_image = torch.ones((32, 576, 7, 7)).to(torch.float).to("cuda")
+    # mock_caption = torch.ones((32, 20)).to(torch.int64).to("cuda")
+    # dc = Decoder(**hyperparameters)
 
-    for param in dc.parameters():
-        torch.nn.init.constant_(param, 2.0)
+    # for param in dc.parameters():
+    #     torch.nn.init.constant_(param, 2.0)
 
     # for name, param in dc.named_parameters():
     #     if param.requires_grad:
@@ -104,7 +104,8 @@ def main():
     #         print()
     #         print()
 
-    dc(mock_image, mock_caption)
+    # dc.eval()
+    # dc(mock_image, mock_caption)
 
     # loader = custom_dataloader('train', sh, hyperparameters["batches"])
     # optimizer = torch.optim.AdamW(dc.parameters(), lr=hyperparameters["learning_rate"])
@@ -120,9 +121,9 @@ def main():
     #     loss.backward()
     #     optimizer.step()
 
-    # wr = SummaryWriter(summary_folder)
-    # trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
-    # trainer.train()
+    wr = SummaryWriter(summary_folder)
+    trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
+    trainer.train()
 
 
 if __name__ == "__main__":

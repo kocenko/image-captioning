@@ -13,65 +13,80 @@ class MultiHeadAttention(nn.Module):
     Implementation of Multi-Head Attention which uses batches for parallelization.
     """
 
-    def __init__(self, input_shapes: Tuple[int, int, int], mask_out: bool = False, **kwargs):
+    def __init__(
+        self,
+        heads_number: int,
+        embeddings_number: int,
+        inputs_channels: tuple[int, int, int],
+        dropout_rate: int,
+        device: str,
+        **kwargs,
+    ):
         super().__init__()
-        embeddings_number = kwargs["embeddings_number"]
-        context_length = kwargs["context_length"]
-        dropout_rate = kwargs["dropout_rate"]
-        heads_number = kwargs["heads_number"]
-        device = kwargs["device"]
-
-        query_input_shape, key_input_shape, value_input_shape = input_shapes
-
+        self.embeddings_number = embeddings_number
         self.heads_number = heads_number
-        self.mask_out = mask_out
-        self.queries_weights = nn.Linear(query_input_shape, embeddings_number, device=device)
-        self.keys_weights = nn.Linear(key_input_shape, embeddings_number, device=device)
-        self.values_weights = nn.Linear(value_input_shape, embeddings_number, device=device)
-        self.register_buffer(
-            "masking_triangle",
-            torch.tril(torch.ones(context_length, context_length, device=device)).view(
-                1, 1, context_length, context_length
-            ),
-        )
+        self.queries_weights = nn.Linear(inputs_channels[0], heads_number * embeddings_number, device=device)
+        self.keys_weights = nn.Linear(inputs_channels[1], heads_number * embeddings_number, device=device)
+        self.values_weights = nn.Linear(inputs_channels[2], heads_number * embeddings_number, device=device)
         self.attention_dropout = nn.Dropout(dropout_rate)
-        self.output_projection = nn.Linear(embeddings_number, embeddings_number, device=device)
+        self.output_projection = nn.Linear(heads_number * embeddings_number, embeddings_number, device=device)
         self.output_dropout = nn.Dropout(dropout_rate)
-
         self.last_attention_scores: Optional[torch.Tensor] = None
 
-    def forward(self, query: torch.Tensor, key: torch.Tensor, value: Optional[torch.Tensor] = None):
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+    ):
         if value is None:
             value = key
 
+        B, query_T, query_C = query.shape
         key_B, key_T, key_C = key.shape
-        query_B, query_T, query_C = query.shape
 
-        # Output shapes: [B, heads_num, T, heads_size]
-        query_vector = self.queries_weights(query)
-        key_vector = self.keys_weights(key)
-        value_vector = self.values_weights(value)
+        # Output shapes: [B, T_x, heads_num, heads_size]
+        query_vector = self.queries_weights(query).view(B, query_T, self.heads_number, -1) / math.sqrt(self.embeddings_number)
+        key_vector = self.keys_weights(key).view(key_B, key_T, self.heads_number, -1)
+        value_vector = self.values_weights(value).view(key_B, key_T, self.heads_number, -1)
 
-        # Reshaping
-        query_vector = query_vector.view(query_B, query_T, self.heads_number, -1).transpose(1, 2)
-        if self.mask_out:
-            np.save('../numpy_logs/torch_query.npy', query_vector.detach().cpu().numpy())
-        key_vector = key_vector.view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
-        value_vector = value_vector.view(key_B, key_T, self.heads_number, -1).transpose(1, 2)
+        # if attention_mask is None:
+        #     np.save("../numpy_logs/torch_query.npy", query_vector.detach().cpu().numpy())
+        #     np.save("../numpy_logs/torch_key.npy", key_vector.detach().cpu().numpy())
+        #     np.save("../numpy_logs/torch_value.npy", value_vector.detach().cpu().numpy())
 
-        # Affinities shape: [B, heads_num, T, T]
-        affinities = query_vector @ key_vector.transpose(-2, -1)
-        affinities /= math.sqrt(key_C)
+        # Affinities shape: [B, heads_num, T_query, T_key]
+        affinities = query_vector.transpose(1, 2) @ key_vector.permute(0, 2, 3, 1)
 
-        if self.mask_out:
-            affinities = affinities.masked_fill(self.masking_triangle[:, :, key_T, :key_T] == 0, float("-inf"))
+        if attention_mask is not None:
+            affinities = affinities.masked_fill(attention_mask[:, :, :key_T, :key_T] == 0, float("-inf"))
+
         affinities = F.softmax(affinities, dim=-1)
-        if self.training:
-            affinities = self.attention_dropout(affinities)
         self.last_attention_scores = affinities
+        # if attention_mask is None:
+        #     np.save("../numpy_logs/torch_attention_scores.npy", affinities.detach().cpu().numpy())
+
+        affinities = self.attention_dropout(affinities)
+        # if attention_mask is None:
+        #     np.save("../numpy_logs/torch_attention_dropout.npy", affinities.detach().cpu().numpy())
+
+        affinities = affinities.view(B, self.heads_number, query_T, -1)
+        value_vector = value_vector.permute(0, 2, 1, 3).view(B, self.heads_number, -1, self.embeddings_number)
 
         output = affinities @ value_vector  # [B, heads_num, T, head_size]
-        output = output.transpose(1, 2).contiguous().view(query_B, query_T, query_C)  # [B, T, C]
+        output = output.view(B, self.heads_number, query_T, self.embeddings_number)
+        output = output.transpose(1, 2)  # [B, T, heads_num, head_size]
+
+        # if attention_mask is None:
+        #     np.save("../numpy_logs/torch_attention_output.npy", output.detach().cpu().numpy())
+
+        output = output.contiguous().view(B, query_T, self.embeddings_number * self.heads_number)  # [B, T, C]
+        projection = self.output_projection(output)
+
+        # if attention_mask is None:
+        #     np.save("../numpy_logs/torch_output_projection.npy", projection.detach().cpu().numpy())
+
         output = self.output_dropout(self.output_projection(output))
 
         return output
@@ -80,46 +95,54 @@ class MultiHeadAttention(nn.Module):
 class TransformerBlock(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
-        embeddings_number = kwargs["embeddings_number"]
+        em = kwargs["embeddings_number"]
+        img_ch = kwargs["image_channels"]
         dropout_rate = kwargs["dropout_rate"]
-        image_channels = kwargs["image_channels"]
+        context_length = kwargs["context_length"]
         device = kwargs["device"]
 
-        self_input_shapes = (embeddings_number, embeddings_number, embeddings_number)  # Q, K, V
-        cross_input_shapes = (embeddings_number, image_channels, image_channels)  # Q, K, V
+        self.register_buffer(
+            "triangle_mask",
+            torch.tril(torch.ones(context_length, context_length, device=device)).view(
+                1, 1, context_length, context_length
+            ),
+        )
 
         # Self attention
-        self.self_attention = MultiHeadAttention(self_input_shapes, mask_out=True, **kwargs)
-        self.layer_normalization_1 = nn.LayerNorm(embeddings_number, device=device)
+        self.self_attention = MultiHeadAttention(inputs_channels=(em, em, em), **kwargs)
+        self.layer_normalization_1 = nn.LayerNorm(em, device=device)
 
         # Cross attention
-        self.cross_attention = MultiHeadAttention(cross_input_shapes, **kwargs)
-        self.layer_normalization_2 = nn.LayerNorm(embeddings_number, device=device)
+        self.cross_attention = MultiHeadAttention(inputs_channels=(em, img_ch, img_ch), **kwargs)
+        self.layer_normalization_2 = nn.LayerNorm(em, device=device)
 
         # Feed forward
         self.feed_forward = nn.Sequential(
-            nn.Linear(embeddings_number, 4 * embeddings_number, device=device),
+            nn.Linear(em, 4 * em, device=device),
             nn.ReLU(),
-            nn.Linear(4 * embeddings_number, embeddings_number, device=device),
+            nn.Linear(4 * em, em, device=device),
             nn.Dropout(dropout_rate),
         )
-        self.layer_normalization_3 = nn.LayerNorm(embeddings_number, device=device)
+        self.layer_normalization_3 = nn.LayerNorm(em, device=device)
         self.last_attention_scores: Optional[torch.Tensor] = None
 
     def forward(self, image, caption):
         # Note: pre-norm formulation can be used
-        sa = self.self_attention(caption, caption)
-        np.save('../numpy_logs/torch_self_attention.npy', sa.detach().cpu().numpy())
-        np.save('../numpy_logs/torch_attention_scores.npy', self.self_attention.last_attention_scores.detach().cpu().numpy())
-        x = torch.add(caption, self.self_attention(caption, caption))
+        # sa = self.self_attention(caption, caption, attention_mask=self.triangle_mask)
+        # np.save("../numpy_logs/torch_self_attention.npy", sa.detach().cpu().numpy())
+
+        x = torch.add(caption, self.self_attention(caption, caption, attention_mask=self.triangle_mask))
         x = self.layer_normalization_1(x)
 
-        mock_image = torch.ones((32, 49, 576)).to(torch.float).to("cuda")
-        mock_x = torch.ones((32, 20, 256)).to(torch.float).to("cuda")
-        cross_attention = self.cross_attention(mock_x, mock_image)
+        # mock_image = torch.ones((32, 49, 576)).to(torch.float).to("cuda")
+        # mock_x = torch.ones((32, 20, 256)).to(torch.float).to("cuda")
+        cross_attention = self.cross_attention(x, image)
         self.last_attention_scores = self.cross_attention.last_attention_scores
-        np.save('../numpy_logs/torch_cross_attention.npy', cross_attention.detach().cpu().numpy())
-        np.save('../numpy_logs/torch_cross_attention_scores.npy', self.cross_attention.last_attention_scores.detach().cpu().numpy())
+        # np.save("../numpy_logs/torch_cross_attention.npy", cross_attention.detach().cpu().numpy())
+        # np.save(
+        #     "../numpy_logs/torch_cross_attention_scores.npy",
+        #     self.cross_attention.last_attention_scores.detach().cpu().numpy(),
+        # )
         x = torch.add(x, cross_attention)
         x = self.layer_normalization_2(x)
 
@@ -215,7 +238,6 @@ class Decoder(nn.Module):
 
         x = self.embedding(caption)
         # np.save('../numpy_logs/torch_embedding.npy', x.detach().cpu().numpy())
-
 
         for block in self.blocks:
             x = block(image, x)
