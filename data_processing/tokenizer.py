@@ -108,7 +108,7 @@ class Tokenizer:
         self.encode_map = {token: i for i, token in enumerate(self.word_list)}
         self.decode_map = {i: token for i, token in enumerate(self.word_list)}
 
-    def encode(self, line_to_encode: str, standardize: bool = True) -> list[int]:
+    def encode(self, line_to_encode: str, standardize: bool = True, pad: bool = True) -> list[int]:
         """Method used to encode the given string into the list of token indices.
 
         The input should not start with <start> and end with <end>.
@@ -116,6 +116,7 @@ class Tokenizer:
         Args:
             line_to_encode (str): string to encode
             standardize (bool): whether to standardize the input first
+            pad (bool): whether to pad the output to the max_length
 
         Returns:
             A list of tokens' indices corresponding to the given string input.
@@ -123,13 +124,9 @@ class Tokenizer:
 
         output_list = []
         word_list = line_to_encode.split() if not standardize else self.standardize(line_to_encode).split()
-
-        for word in word_list:
-            if word in self.encode_map:
-                output_list.append(self.encode_map[word])
-            else:
-                output_list.append(self.encode_map[Tokenizer.unknown_token])
-
+        output_list = [self.encode_map.get(word, self.encode_map[Tokenizer.unknown_token]) for word in word_list]
+        if pad:
+            output_list.extend([self.encode_map[Tokenizer.empty_token]] * (self.max_length - len(output_list)))
         return output_list
 
     def decode(self, list_to_decode: list[int]) -> str:
