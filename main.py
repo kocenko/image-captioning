@@ -1,60 +1,39 @@
 import os
 
-from image_captioning.transformer import Decoder
-from image_captioning.tokenizer import Tokenizer
-from image_captioning.feature_extractor import FeatureExtractor
-from image_captioning.dataset import Sharder, load_flickr8k, custom_dataloader
-from image_captioning.train import Trainer
+from model.transformer import Decoder
+from data_processing.tokenizer import Tokenizer
+from data_processing.feature_extractor import FeatureExtractor
+from data_processing.dataset import Sharder, custom_dataloader
+from data_processing.loader import load_flickr8k
+from model.train import Trainer
 
 import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 
-def calc_single_loss(tk, predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-    """
-    Calculates a loss of a single predictions-labels pair
-
-    Args:
-        predictions (Tensor): captions as an output from the decoder (as logits)
-        labels (Tensor): ground truth captions
-
-    Returns:
-        Tensor as an output of the cross entropy with logarithmic softmax. Calculated for the whole batch.
-    """
-
-    predictions = predictions.transpose(-2, -1)
-    loss = F.cross_entropy(predictions, labels, reduction="none")
-
-    mask = (labels != tk.encode_map[Tokenizer.empty_token]) & (loss < 1e8)
-    mask = mask.float()
-
-    loss = loss * mask
-    loss = torch.sum(loss) / torch.sum(mask)
-    return loss
-
-
 def main():
-    tokens_path = "./dataset/Flickr8k.token.txt"
-    train_path = "./dataset/Flickr_8k.trainImages.txt"
-    valid_path = "./dataset/Flickr_8k.devImages.txt"
-    test_path = "./dataset/Flickr_8k.testImages.txt"
-    images_path = "./dataset/images"
-    sample_image = "./sample_images/surfing.jpg"
-    checkpoints_folder = "./checkpoints"
-    summary_folder = "./summary"
+    tokens_path = "../dataset/Flickr8k.token.txt"
+    train_path = "../dataset/Flickr_8k.trainImages.txt"
+    valid_path = "../dataset/Flickr_8k.devImages.txt"
+    test_path = "../dataset/Flickr_8k.testImages.txt"
+    images_path = "../dataset/images"
+    sample_image = "./evaluation/sample_images/surfing.jpg"
+    checkpoints_folder = "./evaluation/checkpoints"
+    summary_folder = "./evaluation/summary"
 
     train_ds, valid_ds, test_ds = load_flickr8k(tokens_path, train_path, valid_path, test_path, images_path)
 
     hyperparameters = {
         "batches": 32,
-        "split_lengths": (.7, .2, .1),
+        "context_length": 50,
+        "vocabulary_size": 5000,
         "banned_tokens": ["<unknown>", "<start>", ""],
         "embeddings_number": 256,
         "dropout_rate": 0.5,
         "learning_rate": 1e-4,
         "epochs": 100,
-        "blocks_number": 2,
+        "blocks_number": 1,
         "heads_number": 2,
         "head_size": 128,
         "net_slice_index": "features.12",
@@ -71,16 +50,14 @@ def main():
     if hyperparameters["net_slice_index"]:
         fe.slice_net(hyperparameters["net_slice_index"], overwrite_model=True)
 
-    tk = Tokenizer([caption for _, caption in train_ds])
-    sh = Sharder(tk, fe, batch_size=hyperparameters["batches"], shard_size=2000, device=hyperparameters["device"])
-    # sh.save_shards(train_ds, "train", "shards/train")
-    # sh.save_shards(valid_ds, "valid", "shards/valid")
-    # sh.save_shards(test_ds, "test", "shards/test")
-    sh.load_shards(["shards/train", "shards/valid", "shards/test"], ["train", "valid", "test"])
+    tk = Tokenizer([caption for _, caption in train_ds], max_sequence_size=hyperparameters["context_length"], vocabulary_size=hyperparameters["vocabulary_size"])
+    # sh = Sharder(tk, fe, batch_size=hyperparameters["batches"], shard_size=2000, device=hyperparameters["device"])
+    # # sh.save_shards(train_ds, "train", "shards/train")
+    # # sh.save_shards(valid_ds, "valid", "shards/valid")
+    # # sh.save_shards(test_ds, "test", "shards/test")
+    # sh.load_shards(["shards/train", "shards/valid", "shards/test"], ["train", "valid", "test"])
 
     # Updating dependent hyperparameters
-    hyperparameters["vocabulary_size"] = len(tk.word_list)
-    hyperparameters["context_length"] = tk.max_length
     hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image).unsqueeze(0)).shape[1]
     hyperparameters["word_count"] = tk.counter
     hyperparameters["encode_map"] = tk.encode_map
@@ -90,12 +67,12 @@ def main():
         if not os.path.exists(path):
             os.makedirs(path)
 
-    # mock_image = torch.ones((32, 576, 7, 7)).to(torch.float).to("cuda")
-    # mock_caption = torch.ones((32, 20)).to(torch.int64).to("cuda")
-    # dc = Decoder(**hyperparameters)
+    mock_image = torch.ones((32, 576, 7, 7)).to(torch.float32).to("cuda")
+    mock_caption = torch.ones((32, 20)).to(torch.int32).to("cuda")
+    dc = Decoder(**hyperparameters)
 
-    # for param in dc.parameters():
-    #     torch.nn.init.constant_(param, 2.0)
+    for param in dc.parameters():
+        torch.nn.init.constant_(param, 2.0)
 
     # for name, param in dc.named_parameters():
     #     if param.requires_grad:
@@ -104,26 +81,12 @@ def main():
     #         print()
     #         print()
 
-    # dc.eval()
-    # dc(mock_image, mock_caption)
+    dc.eval()
+    dc(mock_image, mock_caption)
 
-    # loader = custom_dataloader('train', sh, hyperparameters["batches"])
-    # optimizer = torch.optim.AdamW(dc.parameters(), lr=hyperparameters["learning_rate"])
-
-    # device = hyperparameters["device"]
-    # for (x1, x2, y) in loader:
-    #     x1, x2, y = x1.to(device), x2.to(device), y.to(device)
-    #     print(f"{x1.shape} {x2.shape} {y.shape}")
-    #     optimizer.zero_grad(set_to_none=True)
-    #     logits = dc(x1, x2)
-    #     loss = calc_single_loss(tk, logits, y)
-    #     print(loss.item())
-    #     loss.backward()
-    #     optimizer.step()
-
-    wr = SummaryWriter(summary_folder)
-    trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
-    trainer.train()
+    # wr = SummaryWriter(summary_folder)
+    # trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
+    # trainer.train()
 
 
 if __name__ == "__main__":

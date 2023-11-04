@@ -1,17 +1,17 @@
 import math
 from collections import Counter
-from typing import Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
 
 
-class SingleHeadAttention(nn.Module):
+class MultiHeadAttention(nn.Module):
     def __init__(
         self,
         input_shapes: tuple[int, int, int],
         embeddings_number: int,
+        heads_number: int,
         dropout_rate: float,
         device: str,
         **kwargs
@@ -19,74 +19,80 @@ class SingleHeadAttention(nn.Module):
         super().__init__()
 
         self.device = device
-        self.key_projection_dim = embeddings_number
-        self.attention_score: Optional[torch.Tensor] = None
-
-        # Key and query projections should have the same dimensions. Implied by embeddings_number.
-        self.query_projection = nn.Linear(input_shapes[0], embeddings_number, bias=False, device=device)
-        self.key_projection = nn.Linear(input_shapes[1], embeddings_number, bias=False, device=device)
-        self.value_projection = nn.Linear(input_shapes[2], embeddings_number, bias=False, device=device)
+        self.num_heads = heads_number
+        self.key_dim = embeddings_number
+        self.query_projection = nn.Linear(input_shapes[0], embeddings_number*heads_number, bias=True, device=device)
+        self.key_projection = nn.Linear(input_shapes[1], embeddings_number*heads_number, bias=True, device=device)
+        self.value_projection = nn.Linear(input_shapes[2], embeddings_number*heads_number, bias=True, device=device)
+        self.attention_dropout = nn.Dropout(dropout_rate)
         self.softmax = nn.Softmax(dim=-1)
-        self.dropout = nn.Dropout(dropout_rate)
+        self.output_projection = nn.Linear(embeddings_number*heads_number, embeddings_number, bias=True, device=device)
+        self.output_dropout = nn.Dropout(dropout_rate)
 
     def forward(
         self,
         query: torch.Tensor,
         key: torch.Tensor,
-        value: torch.Tensor,
-        mask: bool
-    ):
-        query = self.query_projection(query)  # [B, T_q, key_dim]
-        key = self.key_projection(key)        # [B, T_k, key_dim]
-        value = self.value_projection(value)  # [B, T_v, value_dim]
-
-        affinity = query @ key.transpose(-2, -1)  # [B, T_q, T_k]
-        affinity = affinity / math.sqrt(self.key_projection_dim)
-        if mask:
-            causal_mask = torch.tril(torch.ones(query.shape[1], key.shape[1], device=self.device)).unsqueeze(0)  # [1, T_q, T_k]
-            affinity += (causal_mask == 0) * -1e9  # For numerical stability
-
-        self.attention_score = self.softmax(affinity)
-        self.attention_score = self.dropout(self.attention_score)
-
-        attention = self.attention_score @ value  # [B, T_q, value_dim]
-        return attention
-
-
-class MultiHeadAttention(nn.Module):
-    def __init__(
-        self,
-        input_shapes: tuple[int, int, int],
-        **kwargs
-    ) -> None:
-        super().__init__()
-
-        heads_number = kwargs["heads_number"]
-        embeddings_number = kwargs["embeddings_number"]
-        dropout_rate = kwargs["dropout_rate"]
-        device = kwargs["device"]
-
-        self.heads = nn.ModuleList([SingleHeadAttention(input_shapes, **kwargs) for _ in range(heads_number)])
-        self.projection = nn.Linear(heads_number * embeddings_number, embeddings_number, device=device)
-        self.dropout = nn.Dropout(dropout_rate)
-    
-    def forward(
-        self,
-        query: torch.Tensor,
-        key: torch.Tensor,
-        value: torch.Tensor,
-        mask: bool
+        value: torch. Tensor,
+        mask: bool,
     ) -> torch.Tensor:
         
-        heads_outputs = []
-        for head in self.heads:
-            heads_outputs.append(head(query, key, value, mask).unsqueeze(1))
+        type_of_att = 'self' if mask else 'cross'
 
-        x = torch.cat(heads_outputs, dim=-1)
-        x = self.projection(x)
-        x = x.squeeze(dim=1)
-        x = self.dropout(x)
-        return x
+
+        # Remembering input dimensions
+        B, T_q, C_q = query.shape
+        _, T_k, C_k = key.shape
+
+        # Projecting inputs
+        # In this case key_dim = value_dim = embeddings. Also, T_k = T_v
+        query = self.query_projection(query)  # [B, T_q, key_dim * num_heads]
+        key   = self.key_projection(key)      # [B, T_k, key_dim * num_heads]
+        value = self.value_projection(value)  # [B, T_v, val_dim * num_heads]
+
+        # Splitting heads
+        query = query.view(B, T_q, self.num_heads, self.key_dim).transpose(1, 2)  # [B, num_heads, T_q, key_dim]
+        key   = key.view(B, T_k, self.num_heads, self.key_dim).transpose(1, 2)    # [B, num_heads, T_k, key_dim]
+        value = value.view(B, T_k, self.num_heads, self.key_dim).transpose(1, 2)  # [B, num_heads, T_v, val_dim]
+
+        np.save(f'../numpy_logs/torch_key_{type_of_att}.npy', key.transpose(1, 2).detach().cpu().numpy())
+        np.save(f'../numpy_logs/torch_value_{type_of_att}.npy', value.transpose(1, 2).detach().cpu().numpy())
+
+
+        # Scaling query
+        query /= math.sqrt(self.key_dim)
+        np.save(f'../numpy_logs/torch_query_{type_of_att}.npy', query.transpose(1, 2).detach().cpu().numpy())
+
+
+        # Dot-product between the query and the key
+        affinity = query @ key.transpose(-2, -1)  # [B, num_heads, T_q, T_k]
+        
+        np.save(f'../numpy_logs/torch_affinity_{type_of_att}.npy', affinity.detach().cpu().numpy())
+
+        # Masked softmax
+        if mask:
+            causal_mask = torch.tril(torch.ones(T_q, T_k, device=self.device)).view(1, 1, T_q, T_k)
+            affinity += (causal_mask == 0) * -1e9
+        np.save(f'../numpy_logs/torch_masked_{type_of_att}.npy', affinity.detach().cpu().numpy())
+        affinity = self.softmax(affinity)
+        np.save(f'../numpy_logs/torch_softmax_{type_of_att}.npy', affinity.detach().cpu().numpy())
+        affinity = self.attention_dropout(affinity)
+        np.save(f'../numpy_logs/torch_dropout_{type_of_att}.npy', affinity.detach().cpu().numpy())
+
+
+        # # Output score
+        # score = affinity @ value  # [B, num_heads, T_v, val_dim]
+        # score = score.transpose(1, 2)
+        score = torch.einsum('acbe,aecd->abcd', affinity, value.transpose(1, 2))
+        np.save(f'../numpy_logs/torch_out_{type_of_att}.npy', score.detach().cpu().numpy())
+
+        # Output projection
+        score = score.reshape(B, T_q, -1)
+        score = self.output_projection(score)
+        np.save(f'../numpy_logs/torch_projection_{type_of_att}.npy', score.detach().cpu().numpy())
+
+        score = self.output_dropout(score)
+        return score
 
 
 class TransformerBlock(nn.Module):
@@ -95,6 +101,7 @@ class TransformerBlock(nn.Module):
         embeddings = kwargs["embeddings_number"]
         channels = kwargs["image_channels"]
         dropout_rate = kwargs["dropout_rate"]
+        context_length = kwargs["context_length"]
         device = kwargs["device"]
 
         # Self attention
@@ -116,14 +123,27 @@ class TransformerBlock(nn.Module):
 
     def forward(self, image, caption):
         # Note: pre-norm formulation can be used
-        x = torch.add(caption, self.self_attention(caption, caption, caption, True))
+        sa = self.self_attention(caption, caption, caption, True)
+        np.save('../numpy_logs/torch_self_att.npy', sa.detach().cpu().numpy())
+        x = torch.add(caption, sa)
+        np.save('../numpy_logs/torch_self_add.npy', x.detach().cpu().numpy())
         x = self.layer_normalization_1(x)
+        np.save('../numpy_logs/torch_self_norm.npy', x.detach().cpu().numpy())
 
-        x = torch.add(x, self.cross_attention(x, image, image, False))
+        mock_image = torch.ones((32, 49, 576)).to(torch.float32).to("cuda")
+        mock_caption = torch.ones((32, 20, 256)).to(torch.int32).to("cuda")
+        cr = self.cross_attention(mock_caption, mock_image, mock_image, False)
+        np.save('../numpy_logs/torch_cross_att.npy', cr.detach().cpu().numpy())
+        x = torch.add(mock_caption, cr)
+        np.save('../numpy_logs/torch_cross_add.npy', x.detach().cpu().numpy())
         x = self.layer_normalization_2(x)
+        np.save('../numpy_logs/torch_cross_norm.npy', x.detach().cpu().numpy())
 
         x = x + self.feed_forward(x)
+        np.save('../numpy_logs/torch_ff_add.npy', x.detach().cpu().numpy())
+
         x = self.layer_normalization_3(x)
+        np.save('../numpy_logs/torch_ff_norm.npy', x.detach().cpu().numpy())
 
         return x
 
@@ -210,12 +230,16 @@ class Decoder(nn.Module):
 
     def forward(self, image, caption):
         image = self.image_flattener(image)
+        np.save('../numpy_logs/torch_image.npy', image.detach().cpu().numpy())
 
         x = self.embedding(caption)
+        np.save('../numpy_logs/torch_embedding.npy', x.detach().cpu().numpy())
+
 
         for block in self.blocks:
             x = block(image, x)
 
         logits = self.output_layer(x)
+        np.save('../numpy_logs/torch_output_layer.npy', logits.detach().cpu().numpy())
 
         return logits

@@ -4,10 +4,10 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from image_captioning.dataset import Sharder, custom_dataloader
-from image_captioning.transformer import Decoder
-from image_captioning.tokenizer import Tokenizer
-from image_captioning.feature_extractor import FeatureExtractor
+from data_processing.dataset import Sharder, custom_dataloader
+from model.transformer import Decoder
+from data_processing.tokenizer import Tokenizer
+from data_processing.feature_extractor import FeatureExtractor
 
 
 class CaptionGenerator:
@@ -75,6 +75,7 @@ class CaptionGenerator:
 
         image = self.__preprocess_image(image_path).unsqueeze(0)
 
+        self.decoder.eval()
         for _ in range(max_size):
             logits = self.decoder(image, generated_caption)
             logits = logits[:, -1, :]  # Fetching the last token of the generated sequence
@@ -90,6 +91,7 @@ class CaptionGenerator:
             if new_token[0].tolist() == [self.tokenizer.encode_map[Tokenizer.end_token]]:
                 break
 
+        self.decoder.train()
         caption_list = generated_caption[0].tolist()
         return self.tokenizer.decode(caption_list)
 

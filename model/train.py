@@ -9,11 +9,11 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torcheval.metrics.functional.text.bleu import bleu_score
 
-from image_captioning.transformer import Decoder
-from image_captioning.caption_generator import CaptionGenerator
-from image_captioning.dataset import Sharder, custom_dataloader
-from image_captioning.feature_extractor import FeatureExtractor
-from image_captioning.tokenizer import Tokenizer
+from model.transformer import Decoder
+from evaluation.caption_generator import CaptionGenerator
+from data_processing.dataset import Sharder, custom_dataloader
+from data_processing.feature_extractor import FeatureExtractor
+from data_processing.tokenizer import Tokenizer
 
 
 class Trainer:
