@@ -2,16 +2,17 @@ import os
 import tqdm
 from datetime import datetime
 from itertools import islice
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torcheval.metrics.functional.text.bleu import bleu_score
 
 from model.transformer import Decoder
 from evaluation.caption_generator import CaptionGenerator
-from data_processing.dataset import DataCachingManager, custom_dataloader
+from data_processing.dataset import DataCachingManager, ImageCaptionDataset, custom_dataloader
 from data_processing.feature_extractor import FeatureExtractor
 from data_processing.tokenizer import Tokenizer
 
@@ -39,7 +40,7 @@ class Trainer:
         self,
         tokenizer: Tokenizer,
         feature_extractor: FeatureExtractor,
-        sharder: DataCachingManager,
+        dataset: Union[DataCachingManager, tuple[ImageCaptionDataset]],
         checkpoint_path: str,
         sample_image_path: str,
         writer: SummaryWriter,
@@ -52,7 +53,7 @@ class Trainer:
         Args:
             tokenizer (Tokenizer): custom tokenizer
             feature_extractor (FeatureExtractor): pre-trained feature extractor
-            sharder (DataCachingManager): custom dataset sharder
+            dataset (Union[DataCachingManager, tuple[ImageCaptionDataset]]): custom dataset
             checkpoint_path (str): path of the folder where checkpoint files are saved
             sample_image_path (str): path to the file, which is used to generate captions
             writer (SummaryWriter): log writer object
@@ -62,7 +63,7 @@ class Trainer:
 
         self.tokenizer: Tokenizer = tokenizer
         self.feature_extractor: FeatureExtractor = feature_extractor
-        self.sharder: DataCachingManager = sharder
+        self.dataset = dataset
         self.checkpoint_path: str = checkpoint_path
         self.sample_image_path: str = sample_image_path
         self.writer: SummaryWriter = writer
@@ -144,8 +145,6 @@ class Trainer:
         acc = torch.sum(match * mask) / torch.sum(mask)
         return acc
 
-        return bleu_score(candidates, references, n_gram=4)
-
     def __on_epoch_end(
         self, current_epoch: int, number_of_epochs: int, optimizer: torch.optim.AdamW, progress_path: str
     ) -> None:
@@ -192,7 +191,10 @@ class Trainer:
         for t, split in enumerate(["train", "valid"]):
             losses = torch.zeros(iterations)
             accuracies = torch.zeros(iterations)
-            loader = custom_dataloader(split, self.sharder, batch_size=batch_size)
+            if isinstance(self.dataset, DataCachingManager):
+                loader = custom_dataloader(split, self.dataset, batch_size=batch_size)
+            else:
+                loader = DataLoader(self.dataset[t], batch_size=batch_size, shuffle=True, collate_fn=self.dataset[t].collate)
 
             for i, (image, caption, label) in enumerate(islice(loader, iterations)):
                 image, caption, label = image.to(self.device), caption.to(self.device), label.to(self.device)
@@ -233,12 +235,20 @@ class Trainer:
         if checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        all_iters = len(self.sharder.shards_names["train"]) * self.sharder.shard_size // batch_size
+        if isinstance(self.dataset, DataCachingManager):
+            all_iters = len(self.dataset.shards_names["train"]) * self.dataset.shard_size // batch_size
+        else:
+            all_iters = len(self.dataset[0])
+
         eval_each = all_iters // min(all_iters, eval_per_epoch)
 
         for e in range(current_epoch, number_of_epochs):
             print(f"Epoch {e + 1}/{number_of_epochs}")
-            train_dataloader = custom_dataloader("train", self.sharder, batch_size=batch_size)
+
+            if isinstance(self.dataset, DataCachingManager):
+                train_dataloader = custom_dataloader("train", self.dataset, batch_size=batch_size)
+            else:
+                train_dataloader = DataLoader(self.dataset[0], batch_size=batch_size, shuffle=True, collate_fn=self.dataset[0].collate)
 
             for i, (x1, x2, y) in (loading_bar := tqdm.tqdm(enumerate(train_dataloader), colour="00ff00")):
                 if i % eval_each == 0:
