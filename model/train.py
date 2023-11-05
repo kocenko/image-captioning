@@ -11,7 +11,7 @@ from torcheval.metrics.functional.text.bleu import bleu_score
 
 from model.transformer import Decoder
 from evaluation.caption_generator import CaptionGenerator
-from data_processing.dataset import Sharder, custom_dataloader
+from data_processing.dataset import DataCachingManager, custom_dataloader
 from data_processing.feature_extractor import FeatureExtractor
 from data_processing.tokenizer import Tokenizer
 
@@ -39,7 +39,7 @@ class Trainer:
         self,
         tokenizer: Tokenizer,
         feature_extractor: FeatureExtractor,
-        sharder: Sharder,
+        sharder: DataCachingManager,
         checkpoint_path: str,
         sample_image_path: str,
         writer: SummaryWriter,
@@ -52,7 +52,7 @@ class Trainer:
         Args:
             tokenizer (Tokenizer): custom tokenizer
             feature_extractor (FeatureExtractor): pre-trained feature extractor
-            sharder (Sharder): custom dataset sharder
+            sharder (DataCachingManager): custom dataset sharder
             checkpoint_path (str): path of the folder where checkpoint files are saved
             sample_image_path (str): path to the file, which is used to generate captions
             writer (SummaryWriter): log writer object
@@ -62,7 +62,7 @@ class Trainer:
 
         self.tokenizer: Tokenizer = tokenizer
         self.feature_extractor: FeatureExtractor = feature_extractor
-        self.sharder: Sharder = sharder
+        self.sharder: DataCachingManager = sharder
         self.checkpoint_path: str = checkpoint_path
         self.sample_image_path: str = sample_image_path
         self.writer: SummaryWriter = writer

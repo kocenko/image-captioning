@@ -3,12 +3,13 @@ import os
 from model.transformer import Decoder
 from data_processing.tokenizer import Tokenizer
 from data_processing.feature_extractor import FeatureExtractor
-from data_processing.dataset import Sharder, custom_dataloader
+from data_processing.dataset import DataCachingManager, ImageCaptionDataset
 from data_processing.loader import load_flickr8k
 from model.train import Trainer
 
 import torch
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -51,28 +52,31 @@ def main():
         fe.slice_net(hyperparameters["net_slice_index"], overwrite_model=True)
 
     tk = Tokenizer([caption for _, caption in train_ds], max_sequence_size=hyperparameters["context_length"], vocabulary_size=hyperparameters["vocabulary_size"])
-    # sh = Sharder(tk, fe, batch_size=hyperparameters["batches"], shard_size=2000, device=hyperparameters["device"])
+    train_set = ImageCaptionDataset(train_ds, tk, fe, hyperparameters["device"])
+    dl = DataLoader(train_set, batch_size=32, shuffle=True, collate_fn=train_set.collate)
+
+    # sh = DataCachingManager(tk, fe, batch_size=hyperparameters["batches"], shard_size=2000, device=hyperparameters["device"])
     # # sh.save_shards(train_ds, "train", "shards/train")
     # # sh.save_shards(valid_ds, "valid", "shards/valid")
     # # sh.save_shards(test_ds, "test", "shards/test")
     # sh.load_shards(["shards/train", "shards/valid", "shards/test"], ["train", "valid", "test"])
 
-    # Updating dependent hyperparameters
-    hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image).unsqueeze(0)).shape[1]
-    hyperparameters["word_count"] = tk.counter
-    hyperparameters["encode_map"] = tk.encode_map
+    # # Updating dependent hyperparameters
+    # hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image).unsqueeze(0)).shape[1]
+    # hyperparameters["word_count"] = tk.counter
+    # hyperparameters["encode_map"] = tk.encode_map
 
-    # Preparing folders for logging
-    for path in [checkpoints_folder, summary_folder]:
-        if not os.path.exists(path):
-            os.makedirs(path)
+    # # Preparing folders for logging
+    # for path in [checkpoints_folder, summary_folder]:
+    #     if not os.path.exists(path):
+    #         os.makedirs(path)
 
-    mock_image = torch.ones((32, 576, 7, 7)).to(torch.float32).to("cuda")
-    mock_caption = torch.ones((32, 20)).to(torch.int32).to("cuda")
-    dc = Decoder(**hyperparameters)
+    # mock_image = torch.ones((32, 576, 7, 7)).to(torch.float32).to("cuda")
+    # mock_caption = torch.ones((32, 20)).to(torch.int32).to("cuda")
+    # dc = Decoder(**hyperparameters)
 
-    for param in dc.parameters():
-        torch.nn.init.constant_(param, 2.0)
+    # for param in dc.parameters():
+    #     torch.nn.init.constant_(param, 2.0)
 
     # for name, param in dc.named_parameters():
     #     if param.requires_grad:
@@ -81,8 +85,8 @@ def main():
     #         print()
     #         print()
 
-    dc.eval()
-    dc(mock_image, mock_caption)
+    # dc.eval()
+    # dc(mock_image, mock_caption)
 
     # wr = SummaryWriter(summary_folder)
     # trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
