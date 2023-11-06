@@ -7,6 +7,18 @@ from data_processing.tokenizer import Tokenizer
 
 
 class ImageCaptionDataset(Dataset):
+    """Custom dataset derived from the PyTorch dataset class
+
+    Args:
+        dataset (list[tuple[str, str]]): list of tuple pairs: (image path, raw caption)
+        tokenizer (Tokenizer): tokenizer object
+        device (str): indicates on which device the image will be saved
+
+    Attributes:
+        dataset (list[tuple[str, str]]): list of tuple pairs: (image path, raw caption)
+        tokenizer (Tokenizer): tokenizer object
+        device (str): indicates on which device the image will be saved
+    """
     def __init__(
         self,
         dataset: list[tuple[str, str]],
