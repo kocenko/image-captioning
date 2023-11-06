@@ -117,6 +117,7 @@ class MultiHeadAttention(nn.Module):
             affinity += (mask == 0) * -1e9
 
         affinity = self.softmax(affinity)
+        self.attention_weights = affinity
         affinity = self.attention_dropout(affinity)
 
         # Output score
