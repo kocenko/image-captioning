@@ -33,7 +33,10 @@ class MultiHeadAttention(nn.Module):
         attention_weights (torch.Tensor): attention weights between query and key projected vectors
 
     Methods:
-        forward: To compute attention
+        forward: To compute attention.
+
+    Raises:
+        AssertionError: If number of embeddings is not divisible by number of heads
 
     References:
         - "Attention is All You Need" (Vaswani et al., 2017) (https://arxiv.org/abs/1706.03762)
@@ -85,7 +88,7 @@ class MultiHeadAttention(nn.Module):
     ) -> torch.Tensor:
         assert (
             key.shape[1] == value.shape[1]
-        ), f"Sequence sizes of key and value do not match - key: {key.shape[1]}, value: {value.shape[1]}"
+        ), f"Sequence sizes of key and value do not match - key: {key.shape[1]}, value: {value.shape[1]}."
 
         # Remembering input dimensions
         B, T_q, C_q = query.shape
