@@ -6,6 +6,8 @@ import tqdm
 def load_flickr8k(
     tokens_path: str, train_path: str, valid_path: str, test_path: str, images_path: str
 ) -> tuple[list[tuple[str, str]], list[tuple[str, str]], list[tuple[str, str]]]:
+    print("Loading Flickr8k dataset...")
+    
     # Get the list of all images' paths
     images_paths = os.listdir(images_path)
 
@@ -14,7 +16,7 @@ def load_flickr8k(
     for path_to_file, array in zip([train_path, valid_path, test_path], [train_paths, valid_paths, test_paths]):
         with open(path_to_file, "r") as f:
             content = f.read()
-        array.extend([path for path in content.splitlines() if path in images_paths])
+        array.extend([path for path in tqdm.tqdm(content.splitlines()) if path in images_paths])
 
     # Map paths to captions
     with open(tokens_path, "r") as f:

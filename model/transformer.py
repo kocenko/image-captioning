@@ -15,9 +15,9 @@ class TransformerBlock(nn.Module):
         embeddings = kwargs["embeddings_number"]
         channels = kwargs["image_channels"]
         dropout_rate = kwargs["dropout_rate"]
-        context_length = kwargs["context_length"]
         heads_number = kwargs["heads_number"]
         device = kwargs["device"]
+        self.device = device
 
         # Self attention
         self.self_attention = MultiHeadAttention(
@@ -46,13 +46,15 @@ class TransformerBlock(nn.Module):
             nn.Linear(2 * embeddings, embeddings, device=device),
             nn.Dropout(dropout_rate),
         )
-        self.add_and_norm_3 = ResidualLayerNormalization(embeddings. device)
+        self.add_and_norm_3 = ResidualLayerNormalization(embeddings, device)
 
     def forward(self, image, caption):
-        sa = self.self_attention(caption, caption, caption, True)
+        T_q, T_k = caption.shape[1], caption.shape[1]
+        causal_mask = torch.tril(torch.ones(T_q, T_k, device=self.device)).view(1, 1, T_q, T_k)
+        sa = self.self_attention(caption, caption, caption, causal_mask)
         x = self.add_and_norm_1(sa, caption)
 
-        cr = self.cross_attention(x, image, image, False)
+        cr = self.cross_attention(x, image, image)
         x = self.add_and_norm_2(cr, x)
 
         ff = self.feed_forward(x)

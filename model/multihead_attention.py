@@ -112,8 +112,7 @@ class MultiHeadAttention(nn.Module):
         affinity /= self.tau
 
         # Masked softmax
-        if mask:
-            # causal_mask = torch.tril(torch.ones(T_q, T_k, device=self.device)).view(1, 1, T_q, T_k)
+        if mask is not None:
             affinity += (mask == 0) * -1e9
 
         affinity = self.softmax(affinity)
