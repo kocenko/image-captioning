@@ -14,9 +14,7 @@ class ResidualLayerNormalization(nn.Module):
 
     Methods:
         forward: Calculates the layer normalization on the sum of inputs of residual connection
-
     """
-
     def __init__(self, embeddings_number: int, device: str):
         super().__init__()
         self.layer_normalization = nn.LayerNorm(embeddings_number, device=device)
