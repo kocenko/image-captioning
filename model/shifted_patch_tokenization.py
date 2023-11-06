@@ -5,6 +5,24 @@ from torchvision.transforms.v2.functional import affine_image
 
 
 class ShiftedPatchTokenizer(nn.Module):
+    """Tokenizer used to transform an input image into a sequence of flattened patches
+
+    Shifted Patch Tokenizer is used to tackle the problem of low receptive field of the encoder.
+    When the image is split into non-overlapping patches, information about spacial relation between patches is lost.
+    By grouping slightly shifted patches from the same region of an image, adjacent pixels are included in one vector.
+
+    Args:
+        image_size (tuple[int, int]): height and width of an image in pixels
+        shift_pixels (tuple[int, int]): number of pixels to perform shift on (along height and width dimensions)
+        patch_size (int): length of the patch side in pixels
+
+    Attributes:
+        image_size (tuple[int, int]): height and width of an image in pixels
+        patch_size (int): length of the patch side in pixels
+        shifts (list[int]): list of pairs of shift sizes used to perform four diagonal shifts
+        resize (Resize): transformation used to resize an input image
+        flatten (nn.Flatten): layer used to flatten the output
+    """
     def __init__(
         self,
         image_size: tuple[int, int],
