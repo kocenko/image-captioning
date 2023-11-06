@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 
 from model.multihead_attention import MultiHeadAttention
+from model.add_and_norm import ResidualLayerNormalization
 
 
 class TransformerBlock(nn.Module):
@@ -15,15 +16,28 @@ class TransformerBlock(nn.Module):
         channels = kwargs["image_channels"]
         dropout_rate = kwargs["dropout_rate"]
         context_length = kwargs["context_length"]
+        heads_number = kwargs["heads_number"]
         device = kwargs["device"]
 
         # Self attention
-        self.self_attention = MultiHeadAttention(input_shapes=(embeddings, embeddings, embeddings), **kwargs)
-        self.layer_normalization_1 = nn.LayerNorm(embeddings, device=device)
+        self.self_attention = MultiHeadAttention(
+            input_shapes=(embeddings, embeddings, embeddings),
+            embeddings_number=embeddings,
+            heads_number=heads_number,
+            dropout_rate=dropout_rate,
+            device=device,
+        )
+        self.add_and_norm_1 = ResidualLayerNormalization(embeddings, device)
 
         # Cross attention
-        self.cross_attention = MultiHeadAttention(input_shapes=(embeddings, channels, channels), **kwargs)
-        self.layer_normalization_2 = nn.LayerNorm(embeddings, device=device)
+        self.cross_attention = MultiHeadAttention(
+            input_shapes=(embeddings, channels, channels),
+            embeddings_number=embeddings,
+            heads_number=heads_number,
+            dropout_rate=dropout_rate,
+            device=device,
+        )
+        self.add_and_norm_2 = ResidualLayerNormalization(embeddings, device)
 
         # Feed forward
         self.feed_forward = nn.Sequential(
@@ -32,30 +46,17 @@ class TransformerBlock(nn.Module):
             nn.Linear(2 * embeddings, embeddings, device=device),
             nn.Dropout(dropout_rate),
         )
-        self.layer_normalization_3 = nn.LayerNorm(embeddings, device=device)
+        self.add_and_norm_3 = ResidualLayerNormalization(embeddings. device)
 
     def forward(self, image, caption):
-        # Note: pre-norm formulation can be used
         sa = self.self_attention(caption, caption, caption, True)
-        # np.save('../numpy_logs/torch_self_att.npy', sa.detach().cpu().numpy())
-        x = torch.add(caption, sa)
-        # np.save('../numpy_logs/torch_self_add.npy', x.detach().cpu().numpy())
-        x = self.layer_normalization_1(x)
-        # np.save('../numpy_logs/torch_self_norm.npy', x.detach().cpu().numpy())
+        x = self.add_and_norm_1(sa, caption)
 
         cr = self.cross_attention(x, image, image, False)
-        # np.save('../numpy_logs/torch_cross_att.npy', cr.detach().cpu().numpy())
-        x = torch.add(x, cr)
-        # np.save('../numpy_logs/torch_cross_add.npy', x.detach().cpu().numpy())
-        x = self.layer_normalization_2(x)
-        # np.save('../numpy_logs/torch_cross_norm.npy', x.detach().cpu().numpy())
+        x = self.add_and_norm_2(cr, x)
 
-        x = x + self.feed_forward(x)
-        # np.save('../numpy_logs/torch_ff_add.npy', x.detach().cpu().numpy())
-
-        x = self.layer_normalization_3(x)
-        # np.save('../numpy_logs/torch_ff_norm.npy', x.detach().cpu().numpy())
-
+        ff = self.feed_forward(x)
+        x = self.add_and_norm_3(ff, x)
         return x
 
 
