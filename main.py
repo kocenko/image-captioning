@@ -4,7 +4,7 @@ from data_processing.tokenizer import Tokenizer
 from data_processing.dataset import ImageCaptionDataset
 from data_processing.loader import load_flickr8k
 from model.transformer import CaptionTransformer
-# from model.train import Trainer
+from model.train import Trainer
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -52,6 +52,7 @@ def main():
     if torch.cuda.is_available():
         hyperparameters["device"] = "cuda"
         print("Will be using CUDA!!!")
+    device = hyperparameters["device"]
 
     tk = Tokenizer(
         [caption for _, caption in train_ds],
@@ -68,11 +69,15 @@ def main():
         if not os.path.exists(path):
             os.makedirs(path)
 
-    dc = CaptionTransformer(**hyperparameters)
-
+    datasets = [
+        ImageCaptionDataset(train_ds, tk, device),
+        ImageCaptionDataset(valid_ds, tk, device),
+        ImageCaptionDataset(test_ds, tk, device)
+    ]
+    ct = CaptionTransformer(**hyperparameters)
     wr = SummaryWriter(summary_folder)
-    # trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
-    # trainer.train()
+    trainer = Trainer(ct, tk, datasets, checkpoints_folder, sample_image, wr, hyperparameters)
+    trainer.train()
 
 
 if __name__ == "__main__":

@@ -36,7 +36,7 @@ class Trainer:
         self,
         model: CaptionTransformer,
         tokenizer: Tokenizer,
-        datasets: list[list[tuple[str, str]]],
+        datasets: list[ImageCaptionDataset],
         checkpoint_path: str,
         sample_image_path: str,
         writer: SummaryWriter,
