@@ -25,7 +25,7 @@ class DecoderInput(nn.Module):
         positional_encoding = torch.zeros(max_caption_length, embeddings)
         positional_encoding[:, 0::2] = torch.sin(sequence_indices * divisor_term)
         positional_encoding[:, 1::2] = torch.cos(sequence_indices * divisor_term)
-        self.register_buffer('positional_encoding', torch.tensor(positional_encoding))
+        self.register_buffer('positional_encoding', torch.tensor(positional_encoding, device=device))
 
     def forward(self, caption: torch.Tensor) -> torch.Tensor:
         token_embedding = self.patch_embedding(caption)
