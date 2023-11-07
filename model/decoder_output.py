@@ -19,15 +19,13 @@ class DecoderOutput(nn.Module):
     ):
         super().__init__()
         self.projection_to_vocabulary = nn.Linear(embeddings, vocabulary_size, device=device)
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=-1)
 
         bias = torch.zeros(vocabulary_size, device=device)
         if add_bias:
-            assert None not in {
-                counter,
-                encode_map,
-                banned_tokens,
-            }, "Positional parameters should be specified if you want to add bias"
+            assert not any(
+                [counter is None, encode_map is None, banned_tokens is None]
+            ), "Positional parameters should be specified if you want to add bias"
 
             banned_indices = [encode_map[token] for token in banned_tokens]
             token_indices = [encode_map[key] for key in counter.keys()]
@@ -44,7 +42,7 @@ class DecoderOutput(nn.Module):
             bias[counts_list == 0] = -1e9  # Masking banned or non-appearing tokens
             bias = torch.tensor(bias, device=device)
 
-        self.register_buffer('bias', bias)
+        self.register_buffer("bias", bias)
 
     def forward(self, decoder_output: torch.Tensor) -> torch.Tensor:
         x = self.projection_to_vocabulary(decoder_output)

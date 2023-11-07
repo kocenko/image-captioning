@@ -47,7 +47,7 @@ class ShiftedPatchTokenizer(nn.Module):
     def _shift_images(self, image: torch.Tensor) -> torch.Tensor:
         return torch.cat(
             [
-                affine_image(image, angle=0.0, translate=shift, scale=1.0, shear=[0.0]).unsqueeze(0)
+                affine_image(image, angle=0.0, translate=shift, scale=1.0, shear=[0.0]).unsqueeze(1)
                 for shift in self.shifts
             ],
             dim=1,
@@ -69,6 +69,6 @@ class ShiftedPatchTokenizer(nn.Module):
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         resized_image = self.resize(image)  # [batches, channels, height, width]
         shifted_images = self._shift_images(resized_image)  # [batches, shifts, channels, height, width]
-        patches = self._partition_images(shifted_images)  # [batches, patches, shifts, channels, height, width]
-        flattened_patches = self.flatten(patches)  # [batches, patches, shifts*channels*height*width]
-        return flattened_patches
+        patches = self._partition_images(shifted_images)  # [batches, patches, shifts, channels, patch_size, patch_size]
+        flattened_patches = self.flatten(patches)  # [batches, patches, shifts*channels*patch_size*patch_size]
+        return flattened_patches.to(torch.float)

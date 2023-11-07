@@ -9,7 +9,7 @@ from model.decoder_output import DecoderOutput
 
 
 class CaptionTransformer(nn.Module):
-    def __init__(self, config: dict):
+    def __init__(self, **config: dict):
         super().__init__()
         embeddings = config["embeddings"]
         dropout_rate = config["dropout_rate"]

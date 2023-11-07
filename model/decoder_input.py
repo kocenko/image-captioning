@@ -22,11 +22,11 @@ class DecoderInput(nn.Module):
         # Based on: https://medium.com/@hunter-j-phillips/positional-encoding-7a93db4109e6
         sequence_indices = torch.arange(max_caption_length).unsqueeze(1)
         divisor_term = torch.exp(torch.arange(0, embeddings, 2) * -(math.log(pos_n) / embeddings))
-        positional_encoding = torch.zeros(max_caption_length, embeddings)
+        positional_encoding = torch.zeros(max_caption_length, embeddings, device=device)
         positional_encoding[:, 0::2] = torch.sin(sequence_indices * divisor_term)
         positional_encoding[:, 1::2] = torch.cos(sequence_indices * divisor_term)
-        self.register_buffer('positional_encoding', torch.tensor(positional_encoding, device=device))
+        self.register_buffer('positional_encoding', positional_encoding)
 
     def forward(self, caption: torch.Tensor) -> torch.Tensor:
-        token_embedding = self.patch_embedding(caption)
+        token_embedding = self.token_embedding(caption)
         return token_embedding + self.positional_encoding

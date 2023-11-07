@@ -4,7 +4,7 @@ from data_processing.tokenizer import Tokenizer
 from data_processing.dataset import ImageCaptionDataset
 from data_processing.loader import load_flickr8k
 from model.transformer import CaptionTransformer
-from model.train import Trainer
+# from model.train import Trainer
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -38,8 +38,8 @@ def main():
         "dropout_rate": 0.5,
         "patch_size": 16,
         "image_size": (224, 224),
-        "shift_pixels": 5,
-        "encoder_layers": 8,
+        "shift_pixels": (5, 5),
+        "encoder_layers": 4,
         "decoder_layers": 4,
         "learning_rate": 1e-4,
         "epochs": 100,
@@ -60,7 +60,6 @@ def main():
     )
 
     # Updating dependent hyperparameters
-    # hyperparameters["image_channels"] = fe.feed(fe.get_image_from_file(sample_image).unsqueeze(0)).shape[1]
     hyperparameters["counter"] = tk.counter
     hyperparameters["encode_map"] = tk.encode_map
 
@@ -69,22 +68,16 @@ def main():
         if not os.path.exists(path):
             os.makedirs(path)
 
-    # mock_image = torch.ones((32, 576, 7, 7)).to(torch.float32).to("cuda")
-    # mock_caption = torch.ones((32, 20)).to(torch.int32).to("cuda")
-    # dc = Decoder(**hyperparameters)
-
-    # for param in dc.parameters():
-    #     torch.nn.init.constant_(param, 2.0)
+    mock_image = torch.ones((32, 3, 224, 224)).to(torch.int)
+    mock_caption = torch.ones((32, 60)).to(torch.int)
+    dc = CaptionTransformer(**hyperparameters)
 
     # for name, param in dc.named_parameters():
     #     if param.requires_grad:
     #         print(f"{name} --- {param.data.shape}")
-    #         print(param.data.detach().cpu().numpy())
-    #         print()
-    #         print()
 
-    # dc.eval()
-    # dc(mock_image, mock_caption)
+    dc.eval()
+    dc(mock_image, mock_caption)
 
     wr = SummaryWriter(summary_folder)
     # trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
