@@ -42,7 +42,7 @@ class CaptionGenerator:
         generated_caption = [self.tokenizer.encode_map[self.tokenizer.start_token]]
         generated_caption = torch.tensor(generated_caption, device=self.device).unsqueeze(0)
 
-        image = read_image(image_path).unsqueeze(0)
+        image = read_image(image_path).unsqueeze(0).to(self.device)
 
         self.model.eval()
         for _ in range(max_size):
