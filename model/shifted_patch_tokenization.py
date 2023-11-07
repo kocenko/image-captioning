@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from torchvision.transforms.v2 import Resize
 from torchvision.transforms.v2.functional import affine_image
 
 
@@ -20,7 +19,6 @@ class ShiftedPatchTokenizer(nn.Module):
         image_size (tuple[int, int]): height and width of an image in pixels
         patch_size (int): length of the patch side in pixels
         shifts (list[int]): list of pairs of shift sizes used to perform four diagonal shifts
-        resize (Resize): transformation used to resize an input image
         flatten (nn.Flatten): layer used to flatten the output
     """
     def __init__(
@@ -40,8 +38,6 @@ class ShiftedPatchTokenizer(nn.Module):
 
         # right-up, right-down, left-up, left-down
         self.shifts = [[x_shift, y_shift], [x_shift, -y_shift], [-x_shift, y_shift], [-x_shift, -y_shift]]
-
-        self.resize = Resize(image_size, antialias=True)
         self.flatten = nn.Flatten(start_dim=-4, end_dim=-1)
 
     def _shift_images(self, image: torch.Tensor) -> torch.Tensor:
@@ -67,8 +63,7 @@ class ShiftedPatchTokenizer(nn.Module):
         return patches
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
-        resized_image = self.resize(image)  # [batches, channels, height, width]
-        shifted_images = self._shift_images(resized_image)  # [batches, shifts, channels, height, width]
+        shifted_images = self._shift_images(image)  # [batches, shifts, channels, height, width]
         patches = self._partition_images(shifted_images)  # [batches, patches, shifts, channels, patch_size, patch_size]
         flattened_patches = self.flatten(patches)  # [batches, patches, shifts*channels*patch_size*patch_size]
         return flattened_patches.to(torch.float)

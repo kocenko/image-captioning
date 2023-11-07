@@ -56,7 +56,7 @@ def main():
 
     tk = Tokenizer(
         [caption for _, caption in train_ds],
-        max_sequence_size=hyperparameters["max_caption_length"],
+        max_sequence_size=hyperparameters["max_caption_length"]+1,
         vocabulary_size=hyperparameters["vocabulary_size"]
     )
 
@@ -69,10 +69,11 @@ def main():
         if not os.path.exists(path):
             os.makedirs(path)
 
+    image_size = hyperparameters["image_size"]
     datasets = [
-        ImageCaptionDataset(train_ds, tk, device),
-        ImageCaptionDataset(valid_ds, tk, device),
-        ImageCaptionDataset(test_ds, tk, device)
+        ImageCaptionDataset(train_ds, image_size, tk, device),
+        ImageCaptionDataset(valid_ds, image_size, tk, device),
+        ImageCaptionDataset(test_ds, image_size, tk, device)
     ]
     ct = CaptionTransformer(**hyperparameters)
     wr = SummaryWriter(summary_folder)
