@@ -1,5 +1,6 @@
 import os
 import tqdm
+from collections import defaultdict
 from datetime import datetime
 from itertools import islice
 from typing import Dict, Optional, Tuple, Union
@@ -8,29 +9,24 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torcheval.metrics.functional.text.bleu import bleu_score
 
-from model.transformer import Decoder
+from model.transformer import CaptionTransformer
 from evaluation.caption_generator import CaptionGenerator
-from data_processing.dataset import DataCachingManager, ImageCaptionDataset, custom_dataloader
-from data_processing.feature_extractor import FeatureExtractor
+from data_processing.dataset import ImageCaptionDataset
 from data_processing.tokenizer import Tokenizer
 
 
 class Trainer:
-    """
-    A class used for training the decoder
+    """A class used for training a transformer
 
     Attributes:
+        model (CaptionTransformer): model instance to train
         tokenizer (Tokenizer): custom tokenizer
-        feature_extractor (FeatureExtractor): pre-trained feature extractor
         checkpoint_path (str): path of the folder where checkpoint files are saved
         sample_image_path (str): path to the file, which is used to generate captions
         writer (SummaryWriter): log writer object
         hyperparams (dict): dict of parameters used in the training
-        decoder (Decoder): decoder used for caption generation
         device (str): string indicating which device will be used for calculations
-        test (bool): whether to load only one sample for each subset of the dataset
     """
 
     allowed_optimizations: list[str] = ["grid", "random"]
@@ -38,39 +34,34 @@ class Trainer:
 
     def __init__(
         self,
+        model: CaptionTransformer,
         tokenizer: Tokenizer,
-        feature_extractor: FeatureExtractor,
-        dataset: Union[DataCachingManager, tuple[ImageCaptionDataset]],
+        datasets: list[list[tuple[str, str]]],
         checkpoint_path: str,
         sample_image_path: str,
         writer: SummaryWriter,
         hyperparams: dict,
-        test: bool = False,
     ) -> None:
-        """
-        Initializes Trainer class
+        """Initializes Trainer class
 
         Args:
             tokenizer (Tokenizer): custom tokenizer
-            feature_extractor (FeatureExtractor): pre-trained feature extractor
-            dataset (Union[DataCachingManager, tuple[ImageCaptionDataset]]): custom dataset
+            datasets (list[ImageCaptionDataset]): train, valid and test datasets
             checkpoint_path (str): path of the folder where checkpoint files are saved
             sample_image_path (str): path to the file, which is used to generate captions
             writer (SummaryWriter): log writer object
             hyperparams (dict): dict of parameters used in the training
-            test (bool): whether to load only one sample for each subset of the dataset
         """
 
-        self.tokenizer: Tokenizer = tokenizer
-        self.feature_extractor: FeatureExtractor = feature_extractor
-        self.dataset = dataset
-        self.checkpoint_path: str = checkpoint_path
-        self.sample_image_path: str = sample_image_path
-        self.writer: SummaryWriter = writer
-        self.hyperparams: dict = hyperparams
-        self.device: str = hyperparams["device"]
-        self.test: bool = test
-        self.decoder: Decoder = Decoder(**self.hyperparams)
+        self.datasets = defaultdict()
+        self.datasets["train"], self.datasets["valid"], self.datasets["test"] = datasets
+        self.model = model
+        self.tokenizer = tokenizer
+        self.checkpoint_path = checkpoint_path
+        self.sample_image_path = sample_image_path
+        self.writer = writer
+        self.hyperparams = hyperparams
+        self.device = hyperparams["device"]
 
     def __training_in_progress_path(self) -> Optional[str]:
         """
@@ -115,11 +106,9 @@ class Trainer:
         return timestamp_files[max(timestamp_files, key=timestamp_files.get)]
 
     def __calc_single_loss(self, predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        """
-        Calculates a loss of a single predictions-labels pair
+        """Calculates a loss of a single predictions-labels pair
 
         Args:
-            predictions (Tensor): captions as an output from the decoder (as logits)
             labels (Tensor): ground truth captions
 
         Returns:
@@ -163,14 +152,14 @@ class Trainer:
         torch.save(
             {
                 "epoch": e,
-                "model_state_dict": self.decoder.state_dict(),
+                "model_state_dict": self.model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "hyperparams": self.hyperparams,
             },
             os.path.join(self.checkpoint_path, path_to_save),
         )
 
-        captioner = CaptionGenerator(self.decoder, self.tokenizer, self.feature_extractor, self.device)
+        captioner = CaptionGenerator(self.model, self.tokenizer, self.device)
         generated = captioner.generate(self.sample_image_path, max_size=30)
         self.writer.add_text("caption", generated, e)
 
@@ -187,18 +176,15 @@ class Trainer:
         outcome_losses = {}
         outcome_accuracy = {}
 
-        self.decoder.eval()
-        for t, split in enumerate(["train", "valid"]):
+        self.model.eval()
+        for split in ["train", "valid"]:
             losses = torch.zeros(iterations)
             accuracies = torch.zeros(iterations)
-            if isinstance(self.dataset, DataCachingManager):
-                loader = custom_dataloader(split, self.dataset, batch_size=batch_size)
-            else:
-                loader = DataLoader(self.dataset[t], batch_size=batch_size, shuffle=True, collate_fn=self.dataset[t].collate)
+            loader = DataLoader(self.datasets[split], batch_size=batch_size, shuffle=True)
 
             for i, (image, caption, label) in enumerate(islice(loader, iterations)):
                 image, caption, label = image.to(self.device), caption.to(self.device), label.to(self.device)
-                logits = self.decoder(image, caption).to(self.device)
+                logits = self.model(image, caption).to(self.device)
                 loss = self.__calc_single_loss(logits, label)
                 acc = self.__calc_masked_accuracy(logits, label)
                 losses[i] = loss.item()
@@ -206,7 +192,7 @@ class Trainer:
 
             outcome_accuracy[split] = accuracies.mean()
             outcome_losses[split] = losses.mean()
-        self.decoder.train()
+        self.model.train()
 
         return outcome_losses, outcome_accuracy
 
@@ -219,7 +205,7 @@ class Trainer:
             print(f"Loading progress from {progress_path}")
             checkpoint = torch.load(os.path.join(self.checkpoint_path, progress_path))
             self.hyperparams = checkpoint["hyperparams"]
-            self.decoder.load_state_dict(checkpoint["model_state_dict"])
+            self.model.load_state_dict(checkpoint["model_state_dict"])
             current_epoch = checkpoint["epoch"]
         else:
             progress_path = datetime.now().strftime(Trainer.datetime_format) + "_p"
@@ -230,25 +216,17 @@ class Trainer:
         batch_size = self.hyperparams["batches"]
         lr = self.hyperparams["learning_rate"]
 
-        optimizer = torch.optim.AdamW(self.decoder.parameters(), lr=lr)
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr)
 
         if checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        if isinstance(self.dataset, DataCachingManager):
-            all_iters = len(self.dataset.shards_names["train"]) * self.dataset.shard_size // batch_size
-        else:
-            all_iters = len(self.dataset[0])
-
+        all_iters = len(self.datasets["train"])
         eval_each = all_iters // min(all_iters, eval_per_epoch)
 
         for e in range(current_epoch, number_of_epochs):
             print(f"Epoch {e + 1}/{number_of_epochs}")
-
-            if isinstance(self.dataset, DataCachingManager):
-                train_dataloader = custom_dataloader("train", self.dataset, batch_size=batch_size)
-            else:
-                train_dataloader = DataLoader(self.dataset[0], batch_size=batch_size, shuffle=True, collate_fn=self.dataset[0].collate)
+            train_dataloader = DataLoader(self.datasets["train"], batch_size=batch_size, shuffle=True)
 
             for i, (x1, x2, y) in (loading_bar := tqdm.tqdm(enumerate(train_dataloader), colour="00ff00")):
                 if i % eval_each == 0:
@@ -267,7 +245,7 @@ class Trainer:
 
                 x1, x2, y = x1.to(self.device), x2.to(self.device), y.to(self.device)
                 optimizer.zero_grad(set_to_none=True)
-                logits = self.decoder(x1, x2)
+                logits = self.model(x1, x2)
                 loss = self.__calc_single_loss(logits, y)
                 loss.backward()
                 optimizer.step()

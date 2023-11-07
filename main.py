@@ -68,16 +68,7 @@ def main():
         if not os.path.exists(path):
             os.makedirs(path)
 
-    mock_image = torch.ones((32, 3, 224, 224)).to(torch.int)
-    mock_caption = torch.ones((32, 60)).to(torch.int)
     dc = CaptionTransformer(**hyperparameters)
-
-    # for name, param in dc.named_parameters():
-    #     if param.requires_grad:
-    #         print(f"{name} --- {param.data.shape}")
-
-    dc.eval()
-    dc(mock_image, mock_caption)
 
     wr = SummaryWriter(summary_folder)
     # trainer = Trainer(tk, fe, sh, checkpoints_folder, sample_image, wr, hyperparameters)
