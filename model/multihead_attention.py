@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 from torch import nn
 import math
@@ -84,7 +85,7 @@ class MultiHeadAttention(nn.Module):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        mask: torch.Tensor = None,
+        mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         assert (
             key.shape[1] == value.shape[1]
