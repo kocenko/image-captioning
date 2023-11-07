@@ -19,7 +19,6 @@ class DecoderOutput(nn.Module):
     ):
         super().__init__()
         self.projection_to_vocabulary = nn.Linear(embeddings, vocabulary_size, device=device)
-        self.softmax = nn.Softmax(dim=-1)
 
         bias = torch.zeros(vocabulary_size, device=device)
         if add_bias:
@@ -46,6 +45,5 @@ class DecoderOutput(nn.Module):
 
     def forward(self, decoder_output: torch.Tensor) -> torch.Tensor:
         x = self.projection_to_vocabulary(decoder_output)
-        x = x + self.bias
-        x = self.softmax(x)  # Expected output shape: [B, T, vocabulary_size]
+        x = x + self.bias  # Expected output shape: [B, T, vocabulary_size]
         return x
