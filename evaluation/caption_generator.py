@@ -48,7 +48,7 @@ class CaptionGenerator:
         for _ in range(max_size):
             logits = self.model(image, generated_caption)
             logits = logits[:, -1, :]  # Fetching the last token of the generated sequence
-            predictions = F.softmax(logits, dim=-1)
+            predictions = F.log_softmax(logits, dim=-1)
             if temperature == 0:
                 new_token = torch.argmax(predictions, dim=-1).unsqueeze(0)
             else:
