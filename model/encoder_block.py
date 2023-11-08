@@ -35,7 +35,7 @@ class EncoderBlock(nn.Module):
         # Used to ensure Locality Self Attention
         self.register_buffer(
             "diagonal_mask",
-            torch.sub(torch.ones(patches_num, patches_num), torch.eye(patches_num)).view(
+            torch.sub(torch.ones(patches_num, patches_num, device=device), torch.eye(patches_num, device=device)).view(
                 1, 1, patches_num, patches_num
             ),
         )
