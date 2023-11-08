@@ -64,7 +64,7 @@ class MultiHeadAttention(nn.Module):
         self.key_dim = embeddings_number // heads_number  # AKA head_dim
 
         # Proposed to achieve Locality Self Attention
-        if trainable_scale:
+        if not trainable_scale:
             self.tau = torch.tensor(math.sqrt(self.key_dim))
         else:
             self.tau = nn.Parameter(torch.tensor(math.sqrt(self.key_dim), device=device))
