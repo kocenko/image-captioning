@@ -105,9 +105,6 @@ class MultiHeadAttention(nn.Module):
         key = key.view(B, T_k, self.num_heads, self.key_dim).transpose(1, 2)  # [B, num_heads, T_k, key_dim]
         value = value.view(B, T_k, self.num_heads, self.key_dim).transpose(1, 2)  # [B, num_heads, T_v, val_dim]
 
-        # Scaling query
-        query /= self.tau
-
         # Dot-product between the query and the key
         affinity = query @ key.transpose(-2, -1)  # [B, num_heads, T_q, T_k]
         affinity /= self.tau
