@@ -41,15 +41,14 @@ class DecoderBlock(nn.Module):
         )
         self.add_and_norm_3 = ResidualLayerNormalization(embeddings, device)
 
+        # noinspection PyTypeChecker
         self.register_buffer(
             "causal_mask",
-            torch.tril(torch.ones(max_caption_length, max_caption_length, device=device)).view(
-                1, 1, max_caption_length, max_caption_length
-            ),
+            torch.tril(torch.ones(max_caption_length, max_caption_length, device=device)) == 0
         )
 
-    def forward(self, image, caption):
-        sa = self.self_attention(caption, caption, caption, self.causal_mask)
+    def forward(self, image, caption, key_padding_mask):
+        sa = self.self_attention(caption, caption, caption, self.causal_mask, key_padding_mask)
         x = self.add_and_norm_1(sa, caption)
 
         cr = self.cross_attention(x, image, image)

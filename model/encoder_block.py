@@ -33,12 +33,8 @@ class EncoderBlock(nn.Module):
         self.add_and_norm_2 = ResidualLayerNormalization(embeddings_number=embeddings, device=device)
 
         # Used to ensure Locality Self Attention
-        self.register_buffer(
-            "diagonal_mask",
-            torch.sub(torch.ones(patches_num, patches_num, device=device), torch.eye(patches_num, device=device)).view(
-                1, 1, patches_num, patches_num
-            ),
-        )
+        # noinspection PyTypeChecker
+        self.register_buffer("diagonal_mask", torch.eye(patches_num, device=device) == 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         sa = self.self_attention(x, x, x, self.diagonal_mask)

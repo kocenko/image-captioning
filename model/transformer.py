@@ -9,7 +9,7 @@ from model.decoder_output import DecoderOutput
 
 
 class CaptionTransformer(nn.Module):
-    def __init__(self, **config: dict):
+    def __init__(self, **config):
         super().__init__()
         embeddings = config["embeddings"]
         dropout_rate = config["dropout_rate"]
@@ -46,10 +46,10 @@ class CaptionTransformer(nn.Module):
 
     def forward(self, image: torch.Tensor, caption: torch.Tensor):
         image_embeddings = self.encoder(image)
-        x = self.decoder_input(caption)
+        x, key_padding_mask = self.decoder_input(caption)
 
         for block in self.decoder_blocks:
-            x = block(image_embeddings, x)
+            x = block(image_embeddings, x, key_padding_mask)
 
         predictions = self.output_layer(x)
         return predictions

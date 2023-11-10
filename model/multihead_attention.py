@@ -85,10 +85,11 @@ class MultiHeadAttention(nn.Module):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        key_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         assert (
-            key.shape[1] == value.shape[1]
+                key.shape[1] == value.shape[1]
         ), f"Sequence sizes of key and value do not match - key: {key.shape[1]}, value: {value.shape[1]}."
 
         # Remembering input dimensions
@@ -109,9 +110,15 @@ class MultiHeadAttention(nn.Module):
         affinity = query @ key.transpose(-2, -1)  # [B, num_heads, T_q, T_k]
         affinity /= self.tau
 
-        # Masked softmax
-        if mask is not None:
-            affinity += (mask == 0) * -1e9
+        # Masking sequence items that should not be attended to or are padding
+        if attention_mask is not None:
+            attention_mask = attention_mask[None, None, :, :]
+            affinity = affinity.masked_fill(attention_mask, -1e9)
+
+        # Masking paddings from sequence
+        if key_padding_mask is not None:
+            key_padding_mask = key_padding_mask[:, None, None, :]
+            affinity = affinity.masked_fill(key_padding_mask, -1e9)
 
         affinity = self.softmax(affinity)
         self.attention_weights = affinity

@@ -31,7 +31,7 @@ def main():
 
     hyperparameters = {
         "batches": 32,
-        "max_caption_length": 60,
+        "max_caption_length": 40,
         "vocabulary_size": 5000,
         "banned_tokens": ["<unknown>", "<start>", ""],
         "embeddings": 256,
