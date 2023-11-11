@@ -1,6 +1,4 @@
 import math
-from typing import Any
-
 import torch
 from torch import nn
 
@@ -29,7 +27,7 @@ class DecoderInput(nn.Module):
         positional_encoding[:, 1::2] = torch.cos(sequence_indices * divisor_term)
         self.register_buffer('positional_encoding', positional_encoding)
 
-    def forward(self, caption: torch.Tensor) -> tuple[Any, bool]:
+    def forward(self, caption: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         key_padding_mask = (caption == 0)
         token_embedding = self.token_embedding(caption)
-        return token_embedding + self.positional_encoding, key_padding_mask
+        return token_embedding + self.positional_encoding[:token_embedding.shape[1], :], key_padding_mask

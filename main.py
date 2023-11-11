@@ -1,5 +1,7 @@
 import os
 
+import matplotlib.pyplot as plt
+
 from data_processing.tokenizer import Tokenizer
 from data_processing.dataset import ImageCaptionDataset
 from data_processing.loader import load_flickr8k
@@ -31,7 +33,7 @@ def main():
 
     hyperparameters = {
         "batches": 32,
-        "max_caption_length": 40,
+        "max_caption_length": 30,
         "vocabulary_size": 5000,
         "banned_tokens": ["<unknown>", "<start>", ""],
         "embeddings": 256,
