@@ -69,7 +69,6 @@ class MultiHeadAttention(nn.Module):
         else:
             self.tau = nn.Parameter(torch.tensor(math.sqrt(self.key_dim), device=device))
 
-        # Expected
         self.query_projection = nn.Linear(input_shapes[0], embeddings_number, bias=False, device=device)
         self.key_projection = nn.Linear(input_shapes[1], embeddings_number, bias=False, device=device)
         self.value_projection = nn.Linear(input_shapes[2], embeddings_number, bias=False, device=device)
@@ -126,7 +125,7 @@ class MultiHeadAttention(nn.Module):
 
         # Output score
         attention = affinity @ value  # [B, num_heads, T_v, val_dim]
-        attention = attention.transpose(1, 2)
+        attention = attention.transpose(1, 2).contiguous()
 
         # Output projection
         attention = attention.reshape(B, T_q, -1)
