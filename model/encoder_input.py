@@ -14,7 +14,7 @@ class EncoderInput(nn.Module):
         device: str,
     ):
         super().__init__()
-        features_num = 4 * 3 * patch_size * patch_size  # shifts * channels * height * width
+        features_num = 5 * 3 * patch_size * patch_size  # shifts * channels * height * width
         patches_num = (image_size[0] // patch_size) * (image_size[1] // patch_size)
 
         self.patch_tokenizer = ShiftedPatchTokenizer(image_size, shift_pixels, patch_size)

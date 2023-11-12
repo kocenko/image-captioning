@@ -21,6 +21,7 @@ class ShiftedPatchTokenizer(nn.Module):
         shifts (list[int]): list of pairs of shift sizes used to perform four diagonal shifts
         flatten (nn.Flatten): layer used to flatten the output
     """
+
     def __init__(
         self,
         image_size: tuple[int, int],
@@ -45,7 +46,8 @@ class ShiftedPatchTokenizer(nn.Module):
             [
                 affine_image(image, angle=0.0, translate=shift, scale=1.0, shear=[0.0]).unsqueeze(1)
                 for shift in self.shifts
-            ],
+            ]
+            + [image.unsqueeze(1)],
             dim=1,
         )
 
@@ -54,7 +56,7 @@ class ShiftedPatchTokenizer(nn.Module):
         height, width = self.image_size[0], self.image_size[1]
         patches = torch.cat(
             [
-                image[:, :, :, i: i + self.patch_size, j: j + self.patch_size].unsqueeze(1)
+                image[:, :, :, i : i + self.patch_size, j : j + self.patch_size].unsqueeze(1)
                 for i in range(0, height, self.patch_size)
                 for j in range(0, width, self.patch_size)
             ],
