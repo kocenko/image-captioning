@@ -45,5 +45,6 @@ class DecoderOutput(nn.Module):
 
     def forward(self, decoder_output: torch.Tensor) -> torch.Tensor:
         x = self.projection_to_vocabulary(decoder_output)
-        x = x + self.bias  # Expected output shape: [B, T, vocabulary_size]
+        x = x + self.bias
+        x = x.transpose(-2, -1)  # Expected output shape: [B, vocabulary_size, T]
         return x

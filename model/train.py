@@ -3,10 +3,10 @@ import tqdm
 from collections import defaultdict
 from datetime import datetime
 from itertools import islice
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 
 import torch
-import torch.nn.functional as F
+from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -62,6 +62,7 @@ class Trainer:
         self.writer = writer
         self.hyperparams = hyperparams
         self.device = hyperparams["device"]
+        self.criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.encode_map[Tokenizer.empty_token])
 
     def __training_in_progress_path(self) -> Optional[str]:
         """
@@ -105,28 +106,9 @@ class Trainer:
 
         return timestamp_files[max(timestamp_files, key=timestamp_files.get)]
 
-    def __calc_single_loss(self, predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        """Calculates a loss of a single predictions-labels pair
-
-        Args:
-            labels (Tensor): ground truth captions
-
-        Returns:
-            Tensor as an output of the cross entropy with logarithmic softmax. Calculated for the whole batch.
-        """
-
-        predictions = predictions.transpose(-2, -1)
-        loss = F.cross_entropy(predictions, labels, reduction="none")
-
-        mask = (labels != self.tokenizer.encode_map[Tokenizer.empty_token]) & (loss < 1e8)
-        mask = mask.float()
-
-        loss = loss * mask
-        loss = torch.sum(loss) / torch.sum(mask)
-        return loss
-
     @staticmethod
     def __calc_masked_accuracy(logits: torch.Tensor, labels: torch.Tensor) -> torch.float32:
+        logits = logits.transpose(-2, -1)
         mask = labels != 0
         predictions = torch.argmax(logits, dim=-1)
         labels = labels.to(torch.int64)
@@ -185,7 +167,7 @@ class Trainer:
             for i, (image, caption, label) in enumerate(islice(loader, iterations)):
                 image, caption, label = image.to(self.device), caption.to(self.device), label.to(self.device)
                 logits = self.model(image, caption).to(self.device)
-                loss = self.__calc_single_loss(logits, label)
+                loss = self.criterion(logits, label)
                 acc = self.__calc_masked_accuracy(logits, label)
                 losses[i] = loss.item()
                 accuracies[i] = acc.item()
@@ -221,7 +203,7 @@ class Trainer:
         if checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        all_iters = len(self.datasets["train"])
+        all_iters = len(self.datasets["train"]) // batch_size
         eval_each = all_iters // min(all_iters, eval_per_epoch)
 
         for e in range(current_epoch, number_of_epochs):
@@ -246,7 +228,7 @@ class Trainer:
                 x1, x2, y = x1.to(self.device), x2.to(self.device), y.to(self.device)
                 optimizer.zero_grad(set_to_none=True)
                 logits = self.model(x1, x2)
-                loss = self.__calc_single_loss(logits, y)
+                loss = self.criterion(logits, y)
                 loss.backward()
                 optimizer.step()
 
