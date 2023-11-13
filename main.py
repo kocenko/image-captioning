@@ -77,7 +77,7 @@ def main():
     ]
     ct = CaptionTransformer(**hyperparameters)
     wr = SummaryWriter(summary_folder)
-    trainer = Trainer(ct, tk, datasets, checkpoints_folder, sample_image, wr, hyperparameters)
+    trainer = Trainer(ct, tk, hyperparameters["vocabulary_size"], datasets, checkpoints_folder, sample_image, wr, hyperparameters)
     trainer.train()
 
 

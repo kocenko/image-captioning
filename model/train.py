@@ -110,6 +110,25 @@ class Trainer:
 
         return timestamp_files[max(timestamp_files, key=timestamp_files.get)]
 
+    def __calc_single_loss(self, predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """Calculates a loss of a single predictions-labels pair
+
+        Args:
+            labels (Tensor): ground truth captions
+
+        Returns:
+            Tensor as an output of the cross entropy with logarithmic softmax. Calculated for the whole batch.
+        """
+
+        loss = self.criterion(predictions, labels)
+
+        mask = (labels != self.tokenizer.encode_map[Tokenizer.empty_token]) & (loss < 1e8)
+        mask = mask.float()
+
+        loss = loss * mask
+        loss = torch.sum(loss) / torch.sum(mask)
+        return loss
+
     @staticmethod
     def __calc_masked_accuracy(logits: torch.Tensor, labels: torch.Tensor) -> torch.float32:
         logits = logits.transpose(-2, -1)
@@ -169,7 +188,7 @@ class Trainer:
             for i, (image, caption, label) in enumerate(islice(loader, iterations)):
                 image, caption, label = image.to(self.device), caption.to(self.device), label.to(self.device)
                 logits = self.model(image, caption).to(self.device)
-                loss = self.criterion(logits, label)
+                loss = self.__calc_single_loss(logits, label)
                 acc = self.__calc_masked_accuracy(logits, label)
                 losses[i] = loss.item()
                 accuracies[i] = acc.item()
@@ -230,7 +249,7 @@ class Trainer:
                 x1, x2, y = x1.to(self.device), x2.to(self.device), y.to(self.device)
                 optimizer.zero_grad(set_to_none=True)
                 logits = self.model(x1, x2)
-                loss = self.criterion(logits, y)
+                loss = self.__calc_single_loss(logits, y)
                 loss.backward()
                 optimizer.step()
 
