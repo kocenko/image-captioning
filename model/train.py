@@ -22,6 +22,7 @@ class Trainer:
     Attributes:
         model (CaptionTransformer): model instance to train
         tokenizer (Tokenizer): custom tokenizer
+        vocabulary_size (int): number of tokens in vocabulary
         checkpoint_path (str): path of the folder where checkpoint files are saved
         sample_image_path (str): path to the file, which is used to generate captions
         writer (SummaryWriter): log writer object
@@ -36,6 +37,7 @@ class Trainer:
         self,
         model: CaptionTransformer,
         tokenizer: Tokenizer,
+        vocabulary_size: int,
         datasets: list[ImageCaptionDataset],
         checkpoint_path: str,
         sample_image_path: str,
@@ -46,6 +48,7 @@ class Trainer:
 
         Args:
             tokenizer (Tokenizer): custom tokenizer
+            vocabulary_size (int): number of tokens in vocabulary
             datasets (list[ImageCaptionDataset]): train, valid and test datasets
             checkpoint_path (str): path of the folder where checkpoint files are saved
             sample_image_path (str): path to the file, which is used to generate captions
@@ -57,6 +60,7 @@ class Trainer:
         self.datasets["train"], self.datasets["valid"], self.datasets["test"] = datasets
         self.model = model
         self.tokenizer = tokenizer
+        self.vocabulary_size = vocabulary_size
         self.checkpoint_path = checkpoint_path
         self.sample_image_path = sample_image_path
         self.writer = writer
@@ -141,15 +145,13 @@ class Trainer:
             os.path.join(self.checkpoint_path, path_to_save),
         )
 
-        captioner = CaptionGenerator(self.model, self.tokenizer, self.device)
+        captioner = CaptionGenerator(self.model, self.tokenizer, self.vocabulary_size, self.device)
         generated = captioner.generate(self.sample_image_path, max_size=30)
         self.writer.add_text("caption", generated, e)
 
         print(f"""
 
-        {captioner.generate(self.sample_image_path, max_size=30, temperature=0)}
-        {captioner.generate(self.sample_image_path, max_size=30, temperature=0.5)}
-        {captioner.generate(self.sample_image_path, max_size=30, temperature=1)}
+        {captioner.generate_beam_search(self.sample_image_path, 3)}
 
         """)
 

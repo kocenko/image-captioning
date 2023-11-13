@@ -1,7 +1,5 @@
 import os
 
-import matplotlib.pyplot as plt
-
 from data_processing.tokenizer import Tokenizer
 from data_processing.dataset import ImageCaptionDataset
 from data_processing.loader import load_flickr8k
