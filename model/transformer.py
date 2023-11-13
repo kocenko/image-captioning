@@ -42,7 +42,7 @@ class CaptionTransformer(nn.Module):
                 for _ in range(decoder_layers)
             ]
         )
-        self.output_layer = DecoderOutput(embeddings, vocabulary_size, device, False, counter, encode_map, banned_tokens)
+        self.output_layer = DecoderOutput(embeddings, vocabulary_size, device, True, counter, encode_map, banned_tokens)
 
     def forward(self, image: torch.Tensor, caption: torch.Tensor):
         image_embeddings = self.encoder(image)
