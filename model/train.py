@@ -66,7 +66,7 @@ class Trainer:
         self.writer = writer
         self.hyperparams = hyperparams
         self.device = hyperparams["device"]
-        self.criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.encode_map[Tokenizer.empty_token])
+        self.criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.encode_map[Tokenizer.empty_token], reduction='none')
 
     def __training_in_progress_path(self) -> Optional[str]:
         """
