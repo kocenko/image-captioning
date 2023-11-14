@@ -1,14 +1,17 @@
 import os
 import tqdm
+import random
 from collections import defaultdict
 from datetime import datetime
 from itertools import islice
 from typing import Dict, Optional, Tuple
+import matplotlib.pyplot as plt
 
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.io import read_image
 
 from model.transformer import CaptionTransformer
 from evaluation.caption_generator import CaptionGenerator
@@ -39,6 +42,7 @@ class Trainer:
         tokenizer: Tokenizer,
         vocabulary_size: int,
         datasets: list[ImageCaptionDataset],
+        raw_test: list[tuple[str, str]],
         checkpoint_path: str,
         sample_image_path: str,
         writer: SummaryWriter,
@@ -58,6 +62,7 @@ class Trainer:
 
         self.datasets = defaultdict()
         self.datasets["train"], self.datasets["valid"], self.datasets["test"] = datasets
+        self.raw_test_dataset = raw_test
         self.model = model
         self.tokenizer = tokenizer
         self.vocabulary_size = vocabulary_size
@@ -66,7 +71,7 @@ class Trainer:
         self.writer = writer
         self.hyperparams = hyperparams
         self.device = hyperparams["device"]
-        self.criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.encode_map[Tokenizer.empty_token], reduction='none')
+        self.criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.encode_map[Tokenizer.empty_token], reduction="none")
 
     def __training_in_progress_path(self) -> Optional[str]:
         """
@@ -164,15 +169,34 @@ class Trainer:
             os.path.join(self.checkpoint_path, path_to_save),
         )
 
+        exemplary_image, exemplary_caption = random.choice(self.raw_test_dataset)
         captioner = CaptionGenerator(self.model, self.tokenizer, self.vocabulary_size, self.device)
-        generated = captioner.generate(self.sample_image_path, max_size=30)
-        self.writer.add_text("caption", generated, e)
+        generated_caption = captioner.generate_beam_search(exemplary_image, 3)
+        self.writer.add_text("caption", generated_caption, e)
 
-        print(f"""
-
-        {captioner.generate_beam_search(self.sample_image_path, 3)}
-
-        """)
+        image = read_image(exemplary_image).permute(1, 2, 0)
+        fig, ax = plt.subplots(1)
+        ax.imshow(image)
+        bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=0.9)
+        ax.text(
+            image.shape[1] // 2,
+            0.02,
+            f"Original: {exemplary_caption}",
+            ha="center",
+            va="center",
+            size=10,
+            bbox=bbox_props,
+        )
+        ax.text(
+            image.shape[1] // 2,
+            image.shape[0] + 0.02,
+            f"Generated: {generated_caption[7:-5]}",
+            ha="center",
+            va="center",
+            size=10,
+            bbox=bbox_props,
+        )
+        plt.show()
 
     @torch.no_grad()
     def calculate_losses_and_accuracy(self, iterations: int, batch_size: int):

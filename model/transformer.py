@@ -53,3 +53,34 @@ class CaptionTransformer(nn.Module):
 
         predictions = self.output_layer(x)
         return predictions
+
+    def load_weights(self, path_to_weights: str) -> None:
+        mapping = {
+            'embeddings.position_embeddings': '0.positional_embedding.weight',
+            'embeddings.patch_embeddings.projection': '0.patch_embedding',
+            'attention.attention.query': 'self_attention.query_projection',
+            'attention.attention.key': 'self_attention.key_projection',
+            'attention.attention.value': 'self_attention.value_projection',
+            'attention.output.dense': 'self_attention.output_projection',
+            'intermediate.dense': 'feed_forward.0',
+            'output.dense': 'feed_forward.2',
+            'layernorm_before': 'add_and_norm_1.layer_normalization',
+            'layernorm_after': 'add_and_norm_2.layer_normalization',
+            'encoder.layer': '1',
+            'vit': 'encoder',
+        }
+
+        def transform_name(old_name: str):
+            for pretrained, custom in mapping.items():
+                old_name = old_name.replace(pretrained, custom)
+            return old_name
+
+        with torch.no_grad():
+            all_weights = torch.load(path_to_weights)
+            for name, val in all_weights.items():
+                new_name = transform_name(name)
+                matching_params = [
+                    param for name, param in self.named_parameters() if name == new_name and param.shape == val.shape
+                ]
+                for param in matching_params:
+                    param.data.copy_(val)

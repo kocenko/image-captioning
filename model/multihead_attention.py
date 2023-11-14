@@ -69,13 +69,13 @@ class MultiHeadAttention(nn.Module):
         else:
             self.tau = nn.Parameter(torch.tensor(math.sqrt(self.key_dim), device=device))
 
-        self.query_projection = nn.Linear(input_shapes[0], embeddings_number, bias=False, device=device)
-        self.key_projection = nn.Linear(input_shapes[1], embeddings_number, bias=False, device=device)
-        self.value_projection = nn.Linear(input_shapes[2], embeddings_number, bias=False, device=device)
+        self.query_projection = nn.Linear(input_shapes[0], embeddings_number, device=device)
+        self.key_projection = nn.Linear(input_shapes[1], embeddings_number, device=device)
+        self.value_projection = nn.Linear(input_shapes[2], embeddings_number, device=device)
 
         self.attention_dropout = nn.Dropout(dropout_rate)
         self.softmax = nn.Softmax(dim=-1)
-        self.output_projection = nn.Linear(embeddings_number, embeddings_number, bias=False, device=device)
+        self.output_projection = nn.Linear(embeddings_number, embeddings_number, device=device)
         self.output_dropout = nn.Dropout(dropout_rate)
         self.attention_weights = None
 

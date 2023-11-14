@@ -15,6 +15,7 @@ def main():
     sample_image = "./evaluation/sample_images/surfing.jpg"
     checkpoints_folder = "./evaluation/checkpoints"
     summary_folder = "./evaluation/summary"
+    pretrained_weights_path = '../pretrained_weights/pytorch_model.bin'
 
     # Option 1.
     tokens_path = "../dataset/Flickr8k.token.txt"
@@ -34,16 +35,16 @@ def main():
         "max_caption_length": 30,
         "vocabulary_size": 5000,
         "banned_tokens": ["<unknown>", "<start>", ""],
-        "embeddings": 256,
-        "dropout_rate": 0.5,
+        "embeddings": 768,
+        "dropout_rate": 0.6,
         "patch_size": 16,
         "image_size": (224, 224),
         "shift_pixels": (5, 5),
-        "encoder_layers": 2,
-        "decoder_layers": 2,
+        "encoder_layers": 12,
+        "decoder_layers": 4,
         "learning_rate": 1e-4,
         "epochs": 100,
-        "heads_num": 2,
+        "heads_num": 12,
         "eval_iterations": 20,
         "eval_per_epoch": 10,
         "device": "cpu"
@@ -76,9 +77,11 @@ def main():
         ImageCaptionDataset(test_ds, image_size, tk, device)
     ]
     ct = CaptionTransformer(**hyperparameters)
-    wr = SummaryWriter(summary_folder)
-    trainer = Trainer(ct, tk, hyperparameters["vocabulary_size"], datasets, checkpoints_folder, sample_image, wr, hyperparameters)
-    trainer.train()
+    ct.load_weights(pretrained_weights_path)
+    #
+    # wr = SummaryWriter(summary_folder)
+    # trainer = Trainer(ct, tk, hyperparameters["vocabulary_size"], datasets, test_ds, checkpoints_folder, sample_image, wr, hyperparameters)
+    # trainer.train()
 
 
 if __name__ == "__main__":
