@@ -48,7 +48,6 @@ class MultiHeadAttention(nn.Module):
         input_shapes: tuple[int, int, int],
         embeddings_number: int,
         heads_number: int,
-        dropout_rate: float,
         device: str,
         trainable_scale: bool = False,
     ) -> None:

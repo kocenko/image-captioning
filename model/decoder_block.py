@@ -19,18 +19,18 @@ class DecoderBlock(nn.Module):
             input_shapes=(embeddings, embeddings, embeddings),
             embeddings_number=embeddings,
             heads_number=heads_num,
-            dropout_rate=dropout_rate,
             device=device,
         )
+        self.self_attention_dropout = nn.Dropout(dropout_rate)
         self.add_and_norm_1 = ResidualLayerNormalization(embeddings, device)
 
         self.cross_attention = MultiHeadAttention(
             input_shapes=(embeddings, embeddings, embeddings),
             embeddings_number=embeddings,
             heads_number=heads_num,
-            dropout_rate=dropout_rate,
             device=device,
         )
+        self.cross_attention_dropout = nn.Dropout(dropout_rate)
         self.add_and_norm_2 = ResidualLayerNormalization(embeddings, device)
 
         self.feed_forward = nn.Sequential(
@@ -39,6 +39,7 @@ class DecoderBlock(nn.Module):
             nn.Linear(4 * embeddings, embeddings, device=device),
             nn.Dropout(dropout_rate),
         )
+        self.ff_dropout = nn.Dropout(dropout_rate)
         self.add_and_norm_3 = ResidualLayerNormalization(embeddings, device)
 
         # noinspection PyTypeChecker
@@ -49,11 +50,14 @@ class DecoderBlock(nn.Module):
 
     def forward(self, image, caption, key_padding_mask):
         sa = self.self_attention(caption, caption, caption, self.causal_mask, key_padding_mask)
+        sa = self.self_attention_dropout(sa)
         x = self.add_and_norm_1(sa, caption)
 
         cr = self.cross_attention(x, image, image)
+        cr = self.cross_attention_dropout(cr)
         x = self.add_and_norm_2(cr, x)
 
         ff = self.feed_forward(x)
+        ff = self.ff_dropout(ff)
         x = self.add_and_norm_3(ff, x)
         return x

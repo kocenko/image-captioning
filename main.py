@@ -77,11 +77,11 @@ def main():
         ImageCaptionDataset(test_ds, image_size, tk, device)
     ]
     ct = CaptionTransformer(**hyperparameters)
-    ct.load_weights(pretrained_weights_path)
-    #
-    # wr = SummaryWriter(summary_folder)
-    # trainer = Trainer(ct, tk, hyperparameters["vocabulary_size"], datasets, test_ds, checkpoints_folder, sample_image, wr, hyperparameters)
-    # trainer.train()
+    # ct.load_weights(pretrained_weights_path)
+
+    wr = SummaryWriter(summary_folder)
+    trainer = Trainer(ct, tk, hyperparameters["vocabulary_size"], datasets, test_ds, checkpoints_folder, sample_image, wr, hyperparameters)
+    trainer.train()
 
 
 if __name__ == "__main__":
