@@ -27,10 +27,8 @@ class MultiHeadAttention(nn.Module):
         query_projection (nn.Linear): dense layer used for query projection
         key_projection (nn.Linear): dense layer used for key projection
         value_projection (nn.Linear): dense layer used for value projection
-        attention_dropout (nn.Dropout): dropout layer to apply on the attention weights
         softmax (nn.Softmax): softmax layer to apply on attention score
         output_projection (nn.Linear): dense layer to merge scores between attention heads
-        output_dropout (nn.Dropout): dropout layer to apply on the output score
         attention_weights (torch.Tensor): attention weights between query and key projected vectors
 
     Methods:
@@ -72,11 +70,8 @@ class MultiHeadAttention(nn.Module):
         self.query_projection = nn.Linear(input_shapes[0], embeddings_number, device=device)
         self.key_projection = nn.Linear(input_shapes[1], embeddings_number, device=device)
         self.value_projection = nn.Linear(input_shapes[2], embeddings_number, device=device)
-
-        self.attention_dropout = nn.Dropout(dropout_rate)
-        self.softmax = nn.Softmax(dim=-1)
         self.output_projection = nn.Linear(embeddings_number, embeddings_number, device=device)
-        self.output_dropout = nn.Dropout(dropout_rate)
+        self.softmax = nn.Softmax(dim=-1)
         self.attention_weights = None
 
     def forward(
@@ -101,35 +96,33 @@ class MultiHeadAttention(nn.Module):
         value = self.value_projection(value)  # [B, T_v, val_dim * num_heads]
 
         # Splitting heads
-        query = query.view(B, T_q, self.num_heads, self.key_dim).transpose(1, 2)  # [B, num_heads, T_q, key_dim]
-        key = key.view(B, T_k, self.num_heads, self.key_dim).transpose(1, 2)  # [B, num_heads, T_k, key_dim]
-        value = value.view(B, T_k, self.num_heads, self.key_dim).transpose(1, 2)  # [B, num_heads, T_v, val_dim]
+        query = query.reshape(B, T_q, self.num_heads, self.key_dim).permute(0, 2, 1, 3)  # [B, num_heads, T_q, key_dim]
+        key = key.reshape(B, T_k, self.num_heads, self.key_dim).permute(0, 2, 1, 3)  # [B, num_heads, T_k, key_dim]
+        value = value.reshape(B, T_k, self.num_heads, self.key_dim).permute(0, 2, 1, 3)  # [B, num_heads, T_v, val_dim]
 
         # Dot-product between the query and the key
         affinity = query @ key.transpose(-2, -1)  # [B, num_heads, T_q, T_k]
-        affinity /= self.tau
+        affinity = affinity / self.tau
 
         # Masking sequence items that should not be attended to or are padding
         if attention_mask is not None:
             attention_mask = attention_mask[None, None, :query.shape[2], :key.shape[2]]
-            affinity = affinity.masked_fill(attention_mask, -1e9)
+            affinity = affinity.masked_fill(attention_mask, float('-inf'))
 
         # Masking paddings from sequence
         if key_padding_mask is not None:
             key_padding_mask = key_padding_mask[:, None, None, :]
-            affinity = affinity.masked_fill(key_padding_mask, -1e9)
+            affinity = affinity.masked_fill(key_padding_mask, float('-inf'))
 
         affinity = self.softmax(affinity)
         self.attention_weights = affinity
-        affinity = self.attention_dropout(affinity)
 
         # Output score
         attention = affinity @ value  # [B, num_heads, T_v, val_dim]
-        attention = attention.transpose(1, 2).contiguous()
+        attention = attention.permute(0, 2, 1, 3).contiguous()
+        attention = torch.flatten(attention, start_dim=2)
 
         # Output projection
-        attention = attention.reshape(B, T_q, -1)
         attention = self.output_projection(attention)
-        attention = self.output_dropout(attention)
 
         return attention
