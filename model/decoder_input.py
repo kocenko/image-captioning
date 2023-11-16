@@ -14,20 +14,23 @@ class DecoderInput(nn.Module):
         pos_n: int = 1000
     ):
         super().__init__()
-        assert embeddings % 2 == 0, f'Embeddings dimension should be divisible by 2 ot perform fast positional encoding'
+        assert embeddings % 2 == 0, f'Embeddings dimension should be divisible by 2 to perform fast positional encoding'
 
         self.token_embedding = nn.Embedding(vocabulary_size, embeddings, padding_idx=padding_idx, device=device)
 
         # Calculating positional encoding based on the "Attention is All You Need"
         # Based on: https://medium.com/@hunter-j-phillips/positional-encoding-7a93db4109e6
         sequence_indices = torch.arange(max_caption_length).unsqueeze(1)
-        divisor_term = torch.exp(torch.arange(0, embeddings, 2) * -(math.log(pos_n) / embeddings))
+        divisor_term = torch.exp(torch.arange(0, embeddings, 2).float() * (-math.log(pos_n) / embeddings))
         positional_encoding = torch.zeros(max_caption_length, embeddings, device=device)
         positional_encoding[:, 0::2] = torch.sin(sequence_indices * divisor_term)
         positional_encoding[:, 1::2] = torch.cos(sequence_indices * divisor_term)
-        self.register_buffer('positional_encoding', positional_encoding)
+        positional_encoding = positional_encoding.unsqueeze(0)
+
+        self.register_buffer('positional_encoding', positional_encoding, persistent=False)
 
     def forward(self, caption: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         key_padding_mask = (caption == 0)
         token_embedding = self.token_embedding(caption)
-        return token_embedding + self.positional_encoding[:token_embedding.shape[1], :], key_padding_mask
+        token_embedding = token_embedding + self.positional_encoding[:, :token_embedding.shape[1], :]
+        return token_embedding, key_padding_mask
