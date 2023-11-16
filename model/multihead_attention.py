@@ -16,7 +16,6 @@ class MultiHeadAttention(nn.Module):
         input_shapes (tuple): tuple of three values, each representing input dimensions of query, key and value
         embeddings_number (int): embeddings dimension
         heads_number (int): number of heads to parallelize attention
-        dropout_rate (float): rate of dropout used for regularization
         device (str): name of the device on which the layers are performing calculations
         trainable_scale (bool): whether to make tau trainable
 
