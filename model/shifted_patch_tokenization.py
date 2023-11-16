@@ -56,7 +56,7 @@ class ShiftedPatchTokenizer(nn.Module):
         height, width = self.image_size[0], self.image_size[1]
         patches = torch.cat(
             [
-                image[:, :, :, i : i + self.patch_size, j : j + self.patch_size].unsqueeze(1)
+                image[:, :, :, i: i + self.patch_size, j: j + self.patch_size].unsqueeze(1)
                 for i in range(0, height, self.patch_size)
                 for j in range(0, width, self.patch_size)
             ],

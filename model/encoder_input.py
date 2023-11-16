@@ -19,11 +19,13 @@ class EncoderInput(nn.Module):
 
         self.patch_tokenizer = ShiftedPatchTokenizer(image_size, shift_pixels, patch_size)
         self.positional_embedding = nn.Embedding(patches_num, embeddings, device=device)
-        self.patch_embedding = nn.Linear(features_num, embeddings, device=device)  # No padding performed
-        self.register_buffer('sequence_indices', torch.arange(patches_num, device=device))
+        self.patch_embedding = nn.Linear(features_num, embeddings, device=device)
+        self.layer_normalization = nn.LayerNorm(embeddings, device=device)
+        self.register_buffer('sequence_indices', torch.arange(patches_num, device=device), persistent=False)
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         patches = self.patch_tokenizer(image)
         patch_embedding = self.patch_embedding(patches)
+        patch_embedding = self.layer_normalization(patch_embedding)
         positional_embedding = self.positional_embedding(self.sequence_indices)
         return patch_embedding + positional_embedding
