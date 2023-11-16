@@ -45,7 +45,7 @@ class DecoderBlock(nn.Module):
         # noinspection PyTypeChecker
         self.register_buffer(
             "causal_mask",
-            torch.tril(torch.ones(max_caption_length, max_caption_length, device=device)) == 0
+            torch.tril(torch.ones(max_caption_length, max_caption_length, device=device)) == 0, persistent=False
         )
 
     def forward(self, image, caption, key_padding_mask):
