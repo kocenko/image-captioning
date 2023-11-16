@@ -41,7 +41,7 @@ class DecoderOutput(nn.Module):
             bias[counts_list == 0] = -1e9  # Masking banned or non-appearing tokens
             bias = torch.tensor(bias, device=device)
 
-        self.register_buffer("bias", bias)
+        self.register_buffer("bias", bias, persistent=False)
 
     def forward(self, decoder_output: torch.Tensor) -> torch.Tensor:
         x = self.projection_to_vocabulary(decoder_output)
