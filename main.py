@@ -1,8 +1,8 @@
 import os
 
 from data_processing.tokenizer import Tokenizer
-from data_processing.dataset import ImageCaptionDataset
-from data_processing.loader import load_flickr8k
+from data_processing.custom_dataset import ImageCaptionDataset
+from data_processing.dataset_reader import load_flickr8k
 from model.transformer import CaptionTransformer
 from model.train import Trainer
 

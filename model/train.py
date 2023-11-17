@@ -15,7 +15,7 @@ from torchvision.io import read_image
 
 from model.transformer import CaptionTransformer
 from evaluation.caption_generator import CaptionGenerator
-from data_processing.dataset import ImageCaptionDataset
+from data_processing.custom_dataset import ImageCaptionDataset
 from data_processing.tokenizer import Tokenizer
 
 
