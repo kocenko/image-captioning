@@ -51,7 +51,7 @@ class CaptionTransformer(nn.Module):
         for block in self.decoder_blocks:
             x = block(image_embeddings, x, key_padding_mask)
 
-        predictions = self.output_layer(x)
+        predictions = self.output_layer(x).contiguous()
         return predictions
 
     def load_weights(self, path_to_weights: str) -> None:
