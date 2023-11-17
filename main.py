@@ -3,6 +3,7 @@ import os
 from data_processing.tokenizer import Tokenizer
 from data_processing.custom_dataset import ImageCaptionDataset
 from data_processing.dataset_reader import load_flickr8k
+from data_processing.image_transforms import ImageTransforms
 from model.transformer import CaptionTransformer
 from model.train import Trainer
 
@@ -70,10 +71,11 @@ def main():
             os.makedirs(path)
 
     image_size = hyperparameters["image_size"]
+    it = ImageTransforms(image_size)
     datasets = [
-        ImageCaptionDataset(train_ds, image_size, tk, device),
-        ImageCaptionDataset(valid_ds, image_size, tk, device),
-        ImageCaptionDataset(test_ds, image_size, tk, device),
+        ImageCaptionDataset(train_ds, tk, it, device),
+        ImageCaptionDataset(valid_ds, tk, it, device),
+        ImageCaptionDataset(test_ds, tk, it, device),
     ]
     ct = CaptionTransformer(**hyperparameters)
     # ct.load_weights(pretrained_weights_path)
@@ -82,6 +84,7 @@ def main():
     trainer = Trainer(
         ct,
         tk,
+        it,
         hyperparameters["vocabulary_size"],
         datasets,
         test_ds,

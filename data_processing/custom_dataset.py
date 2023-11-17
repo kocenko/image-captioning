@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 from torchvision.io import read_image
 from torchvision.transforms.v2 import Resize, Normalize
 
-
+from data_processing.image_transforms import ImageTransforms
 from data_processing.tokenizer import Tokenizer
 
 
@@ -15,41 +15,34 @@ class ImageCaptionDataset(Dataset):
     Args:
         dataset (list[tuple[str, str]]): list of tuple pairs: (image path, raw caption)
         tokenizer (Tokenizer): tokenizer object
+        transform (ImageTransforms): transforms image
         device (str): indicates on which device the image will be saved
 
     Attributes:
         dataset (list[tuple[str, str]]): list of tuple pairs: (image path, raw caption)
         tokenizer (Tokenizer): tokenizer object
+        transform (ImageTransforms): transforms image
         device (str): indicates on which device the image will be saved
     """
-
-    IMAGENET_MEAN = [0.5, 0.5, 0.5]
-    IMAGENET_STD = [0.5, 0.5, 0.5]
 
     def __init__(
         self,
         dataset: list[tuple[str, str]],
-        image_size: tuple[int, int],
         tokenizer: Tokenizer,
+        transform: ImageTransforms,
         device: str,
     ) -> None:
         self.dataset = dataset
         self.tokenizer = tokenizer
+        self.transform = transform
         self.device = device
-        self.resize = Resize(image_size, antialias=True)
-        self.normalize = Normalize(ImageCaptionDataset.IMAGENET_MEAN, ImageCaptionDataset.IMAGENET_STD)
-
-    def transform_image(self, image: torch.Tensor) -> torch.Tensor:
-        x = self.resize(image)
-        # x = self.normalize(x)
-        return x
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, index: int) -> Any:
-        img = read_image(self.dataset[index][0]).to(self.device)
-        img = self.transform_image(img)
+        img = self.transform.read_image(self.dataset[index][0]).to(self.device)
+        img = self.transform.transform(img)
         cap = torch.tensor(self.tokenizer.encode(self.dataset[index][1]), device=self.device)
         return img, cap[:-1], cap[1:]
 

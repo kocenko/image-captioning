@@ -6,6 +6,7 @@ from torchvision.io import read_image
 
 from model.transformer import CaptionTransformer
 from data_processing.tokenizer import Tokenizer
+from data_processing.image_transforms import ImageTransforms
 
 
 @dataclass
@@ -20,23 +21,29 @@ class CaptionGenerator:
     Attributes:
         model (CaptionTransformer): decoder used for caption generation
         tokenizer (Tokenizer): custom tokenizer
+        transform (ImageTransforms): transforms image
         bos (int): id of the beginning of sequence token
         eos (int): id of the end of sequence token
         vocab_size (int): number of tokens in vocabulary
         device (str): string indicating which device will be used for calculations
     """
 
-    def __init__(self, model: CaptionTransformer, tokenizer: Tokenizer, vocab_size: int, device: str) -> None:
+    def __init__(
+        self, model: CaptionTransformer, tokenizer: Tokenizer, transform: ImageTransforms, vocab_size: int, device: str
+    ) -> None:
         """Initializes caption generator
 
         Args:
             model (CaptionTransformer): model used for caption generation
             tokenizer (Tokenizer): custom tokenizer
+            transform (ImageTransforms): transforms image
             vocab_size (int): number of tokens in vocabulary
             device (str): string indicating which device will be used for calculations
         """
+
         self.model = model
         self.tokenizer = tokenizer
+        self.transform = transform
         self.vocab_size = vocab_size
         self.bos = self.tokenizer.encode_map[Tokenizer.start_token]
         self.eos = self.tokenizer.encode_map[Tokenizer.end_token]
@@ -49,7 +56,8 @@ class CaptionGenerator:
         return [CandidatePair([ids], val) for ids, val in zip(indices, values)]
 
     def generate_beam_search(self, image_path: str, beam_width: int) -> str:
-        image = read_image(image_path).unsqueeze(0).to(self.device)
+        image = self.transform.read_image(image_path).unsqueeze(0).to(self.device)
+        image = self.transform.transform(image)
         caption_start = torch.tensor([self.bos], device=self.device).unsqueeze(0)
 
         self.model.eval()
@@ -101,7 +109,8 @@ class CaptionGenerator:
         """
         max_size = min(max_size, self.tokenizer.max_length)
         generated_caption = torch.tensor([self.bos], device=self.device).unsqueeze(0)
-        image = read_image(image_path).unsqueeze(0).to(self.device)
+        image = self.transform.read_image(image_path).unsqueeze(0).to(self.device)
+        image = self.transform.transform(image)
 
         self.model.eval()
         for _ in range(max_size):

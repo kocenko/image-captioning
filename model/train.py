@@ -17,6 +17,7 @@ from model.transformer import CaptionTransformer
 from evaluation.caption_generator import CaptionGenerator
 from data_processing.custom_dataset import ImageCaptionDataset
 from data_processing.tokenizer import Tokenizer
+from data_processing.image_transforms import ImageTransforms
 
 
 class Trainer:
@@ -25,6 +26,7 @@ class Trainer:
     Attributes:
         model (CaptionTransformer): model instance to train
         tokenizer (Tokenizer): custom tokenizer
+        transform (ImageTransforms): transforms image
         vocabulary_size (int): number of tokens in vocabulary
         checkpoint_path (str): path of the folder where checkpoint files are saved
         sample_image_path (str): path to the file, which is used to generate captions
@@ -40,6 +42,7 @@ class Trainer:
         self,
         model: CaptionTransformer,
         tokenizer: Tokenizer,
+        transform: ImageTransforms,
         vocabulary_size: int,
         datasets: list[ImageCaptionDataset],
         raw_test: list[tuple[str, str]],
@@ -51,7 +54,9 @@ class Trainer:
         """Initializes Trainer class
 
         Args:
+            model (CaptionTransformer): model instance to train
             tokenizer (Tokenizer): custom tokenizer
+            transform (ImageTransforms): transforms image
             vocabulary_size (int): number of tokens in vocabulary
             datasets (list[ImageCaptionDataset]): train, valid and test datasets
             checkpoint_path (str): path of the folder where checkpoint files are saved
@@ -65,6 +70,7 @@ class Trainer:
         self.raw_test_dataset = raw_test
         self.model = model
         self.tokenizer = tokenizer
+        self.transform = transform
         self.vocabulary_size = vocabulary_size
         self.checkpoint_path = checkpoint_path
         self.sample_image_path = sample_image_path
@@ -170,7 +176,7 @@ class Trainer:
         )
 
         exemplary_image, exemplary_caption = random.choice(self.raw_test_dataset)
-        captioner = CaptionGenerator(self.model, self.tokenizer, self.vocabulary_size, self.device)
+        captioner = CaptionGenerator(self.model, self.tokenizer, self.transform, self.vocabulary_size, self.device)
         generated_caption = captioner.generate_beam_search(exemplary_image, 3)
         self.writer.add_text("caption", generated_caption, e)
 
