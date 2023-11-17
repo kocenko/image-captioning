@@ -11,11 +11,10 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def main():
-
     sample_image = "./evaluation/sample_images/surfing.jpg"
     checkpoints_folder = "./evaluation/checkpoints"
     summary_folder = "./evaluation/summary"
-    pretrained_weights_path = '../pretrained_weights/pytorch_model.bin'
+    pretrained_weights_path = "../pretrained_weights/pytorch_model.bin"
 
     # Option 1.
     tokens_path = "../dataset/Flickr8k.token.txt"
@@ -47,7 +46,7 @@ def main():
         "heads_num": 12,
         "eval_iterations": 20,
         "eval_per_epoch": 10,
-        "device": "cpu"
+        "device": "cpu",
     }
 
     if torch.cuda.is_available():
@@ -57,8 +56,8 @@ def main():
 
     tk = Tokenizer(
         [caption for _, caption in train_ds],
-        max_sequence_size=hyperparameters["max_caption_length"]+1,
-        vocabulary_size=hyperparameters["vocabulary_size"]
+        max_sequence_size=hyperparameters["max_caption_length"] + 1,
+        vocabulary_size=hyperparameters["vocabulary_size"],
     )
 
     # Updating dependent hyperparameters
@@ -74,13 +73,23 @@ def main():
     datasets = [
         ImageCaptionDataset(train_ds, image_size, tk, device),
         ImageCaptionDataset(valid_ds, image_size, tk, device),
-        ImageCaptionDataset(test_ds, image_size, tk, device)
+        ImageCaptionDataset(test_ds, image_size, tk, device),
     ]
     ct = CaptionTransformer(**hyperparameters)
     # ct.load_weights(pretrained_weights_path)
 
     wr = SummaryWriter(summary_folder)
-    trainer = Trainer(ct, tk, hyperparameters["vocabulary_size"], datasets, test_ds, checkpoints_folder, sample_image, wr, hyperparameters)
+    trainer = Trainer(
+        ct,
+        tk,
+        hyperparameters["vocabulary_size"],
+        datasets,
+        test_ds,
+        checkpoints_folder,
+        sample_image,
+        wr,
+        hyperparameters,
+    )
     trainer.train()
 
 

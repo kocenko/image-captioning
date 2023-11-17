@@ -25,7 +25,7 @@ def plot_numpy_logs(name: str, folder: str = "../numpy_logs", batch_num: int = 0
     assert (
         array1.shape == array2.shape
     ), f"Shapes {array1.shape} of {all_match[0]} and {array2.shape} of {all_match[1]} do not match"
-    assert batch_num < array1.shape[0], 'Wrong batches num'
+    assert batch_num < array1.shape[0], "Wrong batches num"
 
     n_cols = 2
     if len(array1.shape) == 4:
@@ -53,6 +53,7 @@ def plot_numpy_logs(name: str, folder: str = "../numpy_logs", batch_num: int = 0
 
     plt.tight_layout()
     plt.show()
+
 
 def plot_feature_maps(features: torch.Tensor, plot_shape: tuple[int, int] = (5, 5), seed: int = None) -> None:
     """Used for visualizing feature maps
@@ -105,6 +106,7 @@ def plot_feature_maps(features: torch.Tensor, plot_shape: tuple[int, int] = (5, 
 
     except Exception as e:
         print(f"Could not plot features due to: {e}")
+
 
 def plot_filters(filters: np.ndarray, how_many: int, normalize: bool = True, seed: int = None) -> None:
     """Used for plotting the filter shapes and weights of the last layer

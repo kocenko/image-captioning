@@ -41,12 +41,12 @@ class ImageCaptionDataset(Dataset):
 
     def transform_image(self, image: torch.Tensor) -> torch.Tensor:
         x = self.resize(image)
-        x = self.normalize(x)
+        # x = self.normalize(x)
         return x
 
     def __len__(self):
         return len(self.dataset)
-    
+
     def __getitem__(self, index: int) -> Any:
         img = read_image(self.dataset[index][0]).to(self.device)
         img = self.transform_image(img)

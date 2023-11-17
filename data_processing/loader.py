@@ -7,7 +7,7 @@ def load_flickr8k(
     tokens_path: str, train_path: str, valid_path: str, test_path: str, images_path: str
 ) -> tuple[list[tuple[str, str]], list[tuple[str, str]], list[tuple[str, str]]]:
     print("Loading Flickr8k dataset...")
-    
+
     # Get the list of all images' paths
     images_paths = os.listdir(images_path)
 
@@ -57,7 +57,7 @@ def load_flickr30k(
 
     whole_dataset = []
     for line in tqdm.tqdm(content.splitlines()):
-        split_list = line.split(',', maxsplit=1)
+        split_list = line.split(",", maxsplit=1)
         if len(split_list) == 2 and split_list[0] in images_paths:
             whole_dataset.append((os.path.join(images_path, split_list[0]), split_list[1]))
 

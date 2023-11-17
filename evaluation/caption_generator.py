@@ -46,9 +46,7 @@ class CaptionGenerator:
     def topk_to_pairs(topk_output: torch.return_types.topk) -> list[CandidatePair]:
         indices = topk_output.indices[0].tolist()
         values = topk_output.values[0].tolist()
-        return [
-            CandidatePair([ids], val) for ids, val in zip(indices, values)
-        ]
+        return [CandidatePair([ids], val) for ids, val in zip(indices, values)]
 
     def generate_beam_search(self, image_path: str, beam_width: int) -> str:
         image = read_image(image_path).unsqueeze(0).to(self.device)
@@ -78,7 +76,7 @@ class CaptionGenerator:
                 parent_id = candidate.indices[0] // self.vocab_size
                 child_id = candidate.indices[0] % self.vocab_size
                 candidate.indices = best[parent_id].indices + [child_id]
-                if child_id == self.eos or len(candidate.indices) == self.tokenizer.max_length-1:
+                if child_id == self.eos or len(candidate.indices) == self.tokenizer.max_length - 1:
                     ready_captions.append(candidate)
                     to_remove.append(i)
                     captions_to_generate -= 1

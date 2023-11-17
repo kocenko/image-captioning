@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 
-from model.encoder_input import EncoderInput
-from model.encoder_block import EncoderBlock
-from model.decoder_input import DecoderInput
-from model.decoder_block import DecoderBlock
-from model.decoder_output import DecoderOutput
+from model.encoder import EncoderInput
+from model.encoder import EncoderBlock
+from model.decoder import DecoderInput
+from model.decoder import DecoderBlock
+from model.decoder import DecoderOutput
 
 
 class CaptionTransformer(nn.Module):
@@ -56,18 +56,18 @@ class CaptionTransformer(nn.Module):
 
     def load_weights(self, path_to_weights: str) -> None:
         mapping = {
-            'embeddings.position_embeddings': '0.positional_embedding.weight',
-            'embeddings.patch_embeddings.projection': '0.patch_embedding',
-            'attention.attention.query': 'self_attention.query_projection',
-            'attention.attention.key': 'self_attention.key_projection',
-            'attention.attention.value': 'self_attention.value_projection',
-            'attention.output.dense': 'self_attention.output_projection',
-            'intermediate.dense': 'feed_forward.0',
-            'output.dense': 'feed_forward.2',
-            'layernorm_before': 'add_and_norm_1.layer_normalization',
-            'layernorm_after': 'add_and_norm_2.layer_normalization',
-            'encoder.layer': '1',
-            'vit': 'encoder',
+            "embeddings.position_embeddings": "0.positional_embedding.weight",
+            "embeddings.patch_embeddings.projection": "0.patch_embedding",
+            "attention.attention.query": "self_attention.query_projection",
+            "attention.attention.key": "self_attention.key_projection",
+            "attention.attention.value": "self_attention.value_projection",
+            "attention.output.dense": "self_attention.output_projection",
+            "intermediate.dense": "feed_forward.0",
+            "output.dense": "feed_forward.2",
+            "layernorm_before": "add_and_norm_1.layer_normalization",
+            "layernorm_after": "add_and_norm_2.layer_normalization",
+            "encoder.layer": "1",
+            "vit": "encoder",
         }
 
         def transform_name(old_name: str):
