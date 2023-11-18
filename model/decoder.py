@@ -59,7 +59,6 @@ class DecoderBlock(nn.Module):
             heads_number=heads_num,
             device=device,
         )
-        self.self_attention_dropout = nn.Dropout(dropout_rate)
         self.self_attention_post_normalization = nn.LayerNorm(embeddings, device=device)
 
         self.cross_attention_pre_normalization = nn.LayerNorm(embeddings, device=device)
@@ -69,7 +68,6 @@ class DecoderBlock(nn.Module):
             heads_number=heads_num,
             device=device,
         )
-        self.cross_attention_dropout = nn.Dropout(dropout_rate)
         self.cross_attention_post_normalization = nn.LayerNorm(embeddings, device=device)
 
         self.feed_forward = nn.Sequential(
@@ -88,15 +86,13 @@ class DecoderBlock(nn.Module):
         )
 
     def forward(self, image, caption, key_padding_mask):
-        caption = self.self_attention_pre_normalization(caption)
-        sa = self.self_attention(caption, caption, caption, self.causal_mask, key_padding_mask)
-        sa = self.self_attention_dropout(sa)
+        caption_norm = self.self_attention_pre_normalization(caption)
+        sa = self.self_attention(caption_norm, caption_norm, caption_norm, self.causal_mask, key_padding_mask)
         x = caption + sa
         x = self.self_attention_post_normalization(x)
 
-        image = self.cross_attention_pre_normalization(image)
-        cr = self.cross_attention(x, image, image)
-        cr = self.cross_attention_dropout(cr)
+        image_norm = self.cross_attention_pre_normalization(image)
+        cr = self.cross_attention(x, image_norm, image_norm)
         x = x + cr
         x = self.cross_attention_post_normalization(x)
 

@@ -46,7 +46,6 @@ class EncoderBlock(nn.Module):
             device=device,
             trainable_scale=True,
         )
-        self.attention_dropout = nn.Dropout(dropout_rate)
         self.post_normalization = nn.LayerNorm(embeddings, device=device)
 
         self.feed_forward = nn.Sequential(
@@ -62,9 +61,8 @@ class EncoderBlock(nn.Module):
         self.register_buffer("diagonal_mask", torch.eye(patches_num, device=device) == 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.pre_normalization(x)
-        sa = self.attention(x, x, x)
-        sa = self.attention_dropout(sa)
+        x_norm = self.pre_normalization(x)
+        sa = self.attention(x_norm, x_norm, x_norm)
         x = x + sa
         x = self.post_normalization(x)
 
