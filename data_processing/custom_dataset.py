@@ -2,8 +2,6 @@ from typing import Any
 
 import torch
 from torch.utils.data import Dataset
-from torchvision.io import read_image
-from torchvision.transforms.v2 import Resize, Normalize
 
 from data_processing.image_transforms import ImageTransforms
 from data_processing.tokenizer import Tokenizer
