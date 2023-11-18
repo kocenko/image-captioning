@@ -44,6 +44,7 @@ class EncoderBlock(nn.Module):
             embeddings_number=embeddings,
             heads_number=heads_num,
             device=device,
+            trainable_scale=True,
         )
         self.post_normalization = nn.LayerNorm(embeddings, device=device)
 
@@ -60,7 +61,7 @@ class EncoderBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_norm = self.pre_normalization(x)
-        sa = self.attention(x_norm, x_norm, x_norm)
+        sa = self.attention(x_norm, x_norm, x_norm, self.diagonal_mask)
         x = x + sa
         x_post_norm = self.post_normalization(x)
         ff = self.feed_forward(x_post_norm)

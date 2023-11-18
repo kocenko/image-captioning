@@ -36,7 +36,7 @@ class PatchTokenizer(nn.Module):
         shift (Optional[int]): number of pixels to perform diagonal shift across
 
     Attributes:
-        patch_embedding_layers (nn.ModuleList): list of convolutional layers with shifting layers
+        patch_shifting_layers (nn.ModuleList): list of convolutional layers with shifting layers
         flatten (nn.Flatten): layer used to flatten the output
     """
 
