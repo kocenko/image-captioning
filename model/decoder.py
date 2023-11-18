@@ -76,7 +76,6 @@ class DecoderBlock(nn.Module):
             nn.Linear(4 * embeddings, embeddings, device=device),
             nn.Dropout(dropout_rate),
         )
-        self.ff_dropout = nn.Dropout(dropout_rate)
 
         # noinspection PyTypeChecker
         self.register_buffer(
@@ -89,15 +88,14 @@ class DecoderBlock(nn.Module):
         caption_norm = self.self_attention_pre_normalization(caption)
         sa = self.self_attention(caption_norm, caption_norm, caption_norm, self.causal_mask, key_padding_mask)
         x = caption + sa
-        x = self.self_attention_post_normalization(x)
+        x_post_norm = self.self_attention_post_normalization(x)
 
         image_norm = self.cross_attention_pre_normalization(image)
-        cr = self.cross_attention(x, image_norm, image_norm)
+        cr = self.cross_attention(x_post_norm, image_norm, image_norm)
         x = x + cr
-        x = self.cross_attention_post_normalization(x)
+        x_post_norm = self.cross_attention_post_normalization(x)
 
-        ff = self.feed_forward(x)
-        ff = self.ff_dropout(ff)
+        ff = self.feed_forward(x_post_norm)
         x = x + ff
 
         return x

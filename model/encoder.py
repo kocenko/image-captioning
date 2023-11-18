@@ -16,7 +16,7 @@ class EncoderInput(nn.Module):
     ):
         super().__init__()
         patches_num = (image_size[0] // patch_size) * (image_size[1] // patch_size)
-        self.patch_tokenizer = PatchTokenizer(image_size, patch_size, embeddings, device)
+        self.patch_tokenizer = PatchTokenizer(image_size, patch_size, embeddings, device, shift_pixels)
         self.positional_embedding = nn.Embedding(patches_num, embeddings, device=device)
         self.register_buffer("sequence_indices", torch.arange(patches_num, device=device), persistent=False)
 
@@ -44,7 +44,6 @@ class EncoderBlock(nn.Module):
             embeddings_number=embeddings,
             heads_number=heads_num,
             device=device,
-            trainable_scale=True,
         )
         self.post_normalization = nn.LayerNorm(embeddings, device=device)
 
@@ -54,7 +53,6 @@ class EncoderBlock(nn.Module):
             nn.Linear(4 * embeddings, embeddings, device=device),
             nn.Dropout(dropout_rate),
         )
-        self.ff_dropout = nn.Dropout(dropout_rate)
 
         # Used to ensure Locality Self Attention
         # noinspection PyTypeChecker
@@ -64,10 +62,7 @@ class EncoderBlock(nn.Module):
         x_norm = self.pre_normalization(x)
         sa = self.attention(x_norm, x_norm, x_norm)
         x = x + sa
-        x = self.post_normalization(x)
-
-        ff = self.feed_forward(x)
-        ff = self.ff_dropout(ff)
+        x_post_norm = self.post_normalization(x)
+        ff = self.feed_forward(x_post_norm)
         x = x + ff
-
         return x

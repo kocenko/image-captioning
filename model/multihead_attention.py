@@ -61,7 +61,7 @@ class MultiHeadAttention(nn.Module):
 
         # Proposed to achieve Locality Self Attention
         if not trainable_scale:
-            self.tau = torch.tensor(math.sqrt(self.key_dim))
+            self.tau = math.sqrt(self.key_dim)
         else:
             self.tau = nn.Parameter(torch.tensor(math.sqrt(self.key_dim), device=device))
 
