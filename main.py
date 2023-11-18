@@ -88,6 +88,7 @@ def main():
     caption = train_ds[0][1]
     img_custom = it.transform(it.read_image(train_ds[0][0]).unsqueeze(0))
     with torch.no_grad():
+        ct.training = False
         ct(img_custom, torch.tensor(tk.encode(caption)[:-1]).unsqueeze(0))
 
     # wr = SummaryWriter(summary_folder)

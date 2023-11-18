@@ -6,7 +6,6 @@ import torch
 from torch import nn
 import numpy as np
 
-from model.add_and_norm import ResidualLayerNormalization
 from model.multihead_attention import MultiHeadAttention
 
 
@@ -53,6 +52,7 @@ class DecoderBlock(nn.Module):
         device: str,
     ):
         super().__init__()
+        self.self_attention_pre_normalization = nn.LayerNorm(embeddings, device=device)
         self.self_attention = MultiHeadAttention(
             input_shapes=(embeddings, embeddings, embeddings),
             embeddings_number=embeddings,
@@ -60,8 +60,9 @@ class DecoderBlock(nn.Module):
             device=device,
         )
         self.self_attention_dropout = nn.Dropout(dropout_rate)
-        self.add_and_norm_1 = ResidualLayerNormalization(embeddings, device)
+        self.self_attention_post_normalization = nn.LayerNorm(embeddings, device=device)
 
+        self.cross_attention_pre_normalization = nn.LayerNorm(embeddings, device=device)
         self.cross_attention = MultiHeadAttention(
             input_shapes=(embeddings, embeddings, embeddings),
             embeddings_number=embeddings,
@@ -69,7 +70,7 @@ class DecoderBlock(nn.Module):
             device=device,
         )
         self.cross_attention_dropout = nn.Dropout(dropout_rate)
-        self.add_and_norm_2 = ResidualLayerNormalization(embeddings, device)
+        self.cross_attention_post_normalization = nn.LayerNorm(embeddings, device=device)
 
         self.feed_forward = nn.Sequential(
             nn.Linear(embeddings, 4 * embeddings, device=device),
@@ -78,7 +79,6 @@ class DecoderBlock(nn.Module):
             nn.Dropout(dropout_rate),
         )
         self.ff_dropout = nn.Dropout(dropout_rate)
-        self.add_and_norm_3 = ResidualLayerNormalization(embeddings, device)
 
         # noinspection PyTypeChecker
         self.register_buffer(
@@ -88,17 +88,22 @@ class DecoderBlock(nn.Module):
         )
 
     def forward(self, image, caption, key_padding_mask):
+        caption = self.self_attention_pre_normalization(caption)
         sa = self.self_attention(caption, caption, caption, self.causal_mask, key_padding_mask)
         sa = self.self_attention_dropout(sa)
-        x = self.add_and_norm_1(sa, caption)
+        x = caption + sa
+        x = self.self_attention_post_normalization(x)
 
+        image = self.cross_attention_pre_normalization(image)
         cr = self.cross_attention(x, image, image)
         cr = self.cross_attention_dropout(cr)
-        x = self.add_and_norm_2(cr, x)
+        x = x + cr
+        x = self.cross_attention_post_normalization(x)
 
         ff = self.feed_forward(x)
         ff = self.ff_dropout(ff)
-        x = self.add_and_norm_3(ff, x)
+        x = x + ff
+
         return x
 
 
