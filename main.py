@@ -1,51 +1,51 @@
-import os
-
-from data_processing.tokenizer import Tokenizer
-from data_processing.custom_dataset import ImageCaptionDataset
-from data_processing.dataset_reader import load_flickr8k
-from data_processing.image_transforms import ImageTransforms
-from model.transformer import CaptionTransformer
-from model.train import Trainer
-
 import torch
-from torch.utils.tensorboard import SummaryWriter
-import numpy as np
+
+from lightning import Trainer
+from lightning.pytorch.callbacks import EarlyStopping
+
+from lit_modules.lit_data import DataModule
+from lit_modules.lit_model import ModelModule
+from lit_modules.callbacks import GenerateCaption
+from model.transformer import CaptionTransformer
 
 
 def main():
     sample_image = "./evaluation/sample_images/surfing.jpg"
-    checkpoints_folder = "./evaluation/checkpoints"
-    summary_folder = "./evaluation/summary"
-    pretrained_weights_path = "../pretrained_weights/pytorch_model.bin"
+    # checkpoints_folder = "./evaluation/checkpoints"
+    # summary_folder = "./evaluation/summary"
+    # pretrained_weights_path = "../pretrained_weights/pytorch_model.bin"
 
-    # Option 1.
-    tokens_path = "../dataset/Flickr8k.token.txt"
-    train_path = "../dataset/Flickr_8k.trainImages.txt"
-    valid_path = "../dataset/Flickr_8k.devImages.txt"
-    test_path = "../dataset/Flickr_8k.testImages.txt"
-    images_path = "../dataset/images"
-    train_ds, valid_ds, test_ds = load_flickr8k(tokens_path, train_path, valid_path, test_path, images_path)
-
-    # # Option 2.
-    # tokens_path = "../dataset/flickr30k/captions.txt"
-    # images_path = "../dataset/flickr30k/Images"
-    # train_ds, valid_ds, test_ds = load_flickr30k(tokens_path, images_path)
+    dataset_name = "flickr8k"
+    dataset_paths = {}
+    if dataset_name == "flickr8k":
+        dataset_paths = {
+            "tokens_path": "../dataset/Flickr8k.token.txt",
+            "train_path": "../dataset/Flickr_8k.trainImages.txt",
+            "valid_path": "../dataset/Flickr_8k.devImages.txt",
+            "test_path": "../dataset/Flickr_8k.testImages.txt",
+            "images_path": "../dataset/images",
+        }
+    elif dataset_name == "flickr30k":
+        dataset_paths = {
+            "tokens_path": "../dataset/flickr30k/captions.txt",
+            "images_path": "../dataset/flickr30k/Images",
+        }
 
     hyperparameters = {
         "batches": 32,
         "max_caption_length": 30,
         "vocabulary_size": 5000,
         "banned_tokens": ["<unknown>", "<start>", ""],
-        "embeddings": 768,
-        "dropout_rate": 0.6,
+        "embeddings": 256,
+        "dropout_rate": 0.0,
         "patch_size": 16,
         "image_size": (224, 224),
         "shift_pixels": 5,
-        "encoder_layers": 12,
-        "decoder_layers": 4,
+        "encoder_layers": 2,
+        "decoder_layers": 2,
         "learning_rate": 1e-4,
         "epochs": 100,
-        "heads_num": 12,
+        "heads_num": 4,
         "eval_iterations": 20,
         "eval_per_epoch": 10,
         "device": "cpu",
@@ -54,57 +54,44 @@ def main():
     if torch.cuda.is_available():
         hyperparameters["device"] = "cuda"
         print("Will be using CUDA!!!")
-    device = hyperparameters["device"]
 
-    tk = Tokenizer(
-        [caption for _, caption in train_ds],
-        max_sequence_size=hyperparameters["max_caption_length"] + 1,
-        vocabulary_size=hyperparameters["vocabulary_size"],
+    lit_data_module = DataModule(
+        dataset_name,
+        dataset_paths,
+        hyperparameters["max_caption_length"] + 1,
+        hyperparameters["vocabulary_size"],
+        hyperparameters["image_size"],
+        hyperparameters["batches"],
+        hyperparameters["device"],
     )
 
     # Updating dependent hyperparameters
-    hyperparameters["counter"] = tk.counter
-    hyperparameters["encode_map"] = tk.encode_map
+    hyperparameters["counter"] = lit_data_module.tokenizer.counter
+    hyperparameters["encode_map"] = lit_data_module.tokenizer.encode_map
 
-    # Preparing folders for logging
-    for path in [checkpoints_folder, summary_folder]:
-        if not os.path.exists(path):
-            os.makedirs(path)
+    # # Preparing folders for logging
+    # for path in [checkpoints_folder, summary_folder]:
+    #     if not os.path.exists(path):
+    #         os.makedirs(path)
 
-    image_size = hyperparameters["image_size"]
-    it = ImageTransforms(image_size)
-    datasets = [
-        ImageCaptionDataset(train_ds, tk, it, device),
-        ImageCaptionDataset(valid_ds, tk, it, device),
-        ImageCaptionDataset(test_ds, tk, it, device),
-    ]
     ct = CaptionTransformer(**hyperparameters)
-    # ct.load_weights(pretrained_weights_path)
+    lit_model = ModelModule(ct, hyperparameters["encode_map"], hyperparameters["learning_rate"])
 
-    torch.manual_seed(2013)
-    for name, val in ct.named_parameters():
-        val.data.copy_(torch.rand_like(val))
-
-    caption = train_ds[0][1]
-    img_custom = it.transform(it.read_image(train_ds[0][0]).unsqueeze(0))
-    with torch.no_grad():
-        ct.training = False
-        ct(img_custom, torch.tensor(tk.encode(caption)[:-1]).unsqueeze(0))
-
-    # wr = SummaryWriter(summary_folder)
-    # trainer = Trainer(
-    #     ct,
-    #     tk,
-    #     it,
-    #     hyperparameters["vocabulary_size"],
-    #     datasets,
-    #     test_ds,
-    #     checkpoints_folder,
-    #     sample_image,
-    #     wr,
-    #     hyperparameters,
-    # )
-    # trainer.train()
+    early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
+    caption_gen = GenerateCaption(
+        sample_image,
+        lit_data_module.tokenizer,
+        lit_data_module.transform,
+        hyperparameters["vocabulary_size"],
+        device=hyperparameters["device"],
+    )
+    trainer = Trainer(
+        max_epochs=hyperparameters["epochs"],
+        val_check_interval=1 / hyperparameters["eval_per_epoch"],
+        limit_val_batches=hyperparameters["eval_iterations"],
+        callbacks=[early_stopping, caption_gen],
+    )
+    trainer.fit(lit_model, lit_data_module)
 
 
 if __name__ == "__main__":
