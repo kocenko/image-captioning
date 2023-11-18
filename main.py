@@ -9,6 +9,7 @@ from model.train import Trainer
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 
 
 def main():
@@ -39,7 +40,7 @@ def main():
         "dropout_rate": 0.6,
         "patch_size": 16,
         "image_size": (224, 224),
-        "shift_pixels": (5, 5),
+        "shift_pixels": 5,
         "encoder_layers": 12,
         "decoder_layers": 4,
         "learning_rate": 1e-4,
@@ -80,20 +81,29 @@ def main():
     ct = CaptionTransformer(**hyperparameters)
     # ct.load_weights(pretrained_weights_path)
 
-    wr = SummaryWriter(summary_folder)
-    trainer = Trainer(
-        ct,
-        tk,
-        it,
-        hyperparameters["vocabulary_size"],
-        datasets,
-        test_ds,
-        checkpoints_folder,
-        sample_image,
-        wr,
-        hyperparameters,
-    )
-    trainer.train()
+    torch.manual_seed(2013)
+    for name, val in ct.named_parameters():
+        val.data.copy_(torch.rand_like(val))
+
+    caption = train_ds[0][1]
+    img_custom = it.transform(it.read_image(train_ds[0][0]).unsqueeze(0))
+    with torch.no_grad():
+        ct(img_custom, torch.tensor(tk.encode(caption)[:-1]).unsqueeze(0))
+
+    # wr = SummaryWriter(summary_folder)
+    # trainer = Trainer(
+    #     ct,
+    #     tk,
+    #     it,
+    #     hyperparameters["vocabulary_size"],
+    #     datasets,
+    #     test_ds,
+    #     checkpoints_folder,
+    #     sample_image,
+    #     wr,
+    #     hyperparameters,
+    # )
+    # trainer.train()
 
 
 if __name__ == "__main__":

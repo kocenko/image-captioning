@@ -3,32 +3,28 @@ from torch import nn
 
 from model.multihead_attention import MultiHeadAttention
 from model.add_and_norm import ResidualLayerNormalization
-from model.shifted_patch_tokenization import ShiftedPatchTokenizer
+from model.patch_tokenization import PatchTokenizer
 
 
 class EncoderInput(nn.Module):
     def __init__(
         self,
         image_size: tuple[int, int],
-        shift_pixels: tuple[int, int],
+        shift_pixels: int,
         patch_size: int,
         embeddings: int,
         device: str,
     ):
         super().__init__()
-        features_num = 5 * 3 * patch_size * patch_size  # shifts * channels * height * width
         patches_num = (image_size[0] // patch_size) * (image_size[1] // patch_size)
-
-        self.patch_tokenizer = ShiftedPatchTokenizer(image_size, shift_pixels, patch_size)
+        self.patch_tokenizer = PatchTokenizer(image_size, patch_size, embeddings, device)
         self.positional_embedding = nn.Embedding(patches_num, embeddings, device=device)
-        self.patch_embedding = nn.Linear(features_num, embeddings, device=device)
         self.layer_normalization = nn.LayerNorm(embeddings, device=device)
         self.register_buffer("sequence_indices", torch.arange(patches_num, device=device), persistent=False)
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         patches = self.patch_tokenizer(image)
-        patch_embedding = self.patch_embedding(patches)
-        patch_embedding = self.layer_normalization(patch_embedding)
+        patch_embedding = self.layer_normalization(patches)
         positional_embedding = self.positional_embedding(self.sequence_indices)
         return patch_embedding + positional_embedding
 
