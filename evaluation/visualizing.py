@@ -153,3 +153,26 @@ def plot_filters(filters: np.ndarray, how_many: int, normalize: bool = True, see
 
     except Exception as e:
         print(f"Could not visualize filters due to: {e}")
+
+
+def plot_self_attention(
+    base_image: torch.Tensor,
+    attention_weights: list[list[torch.Tensor]],
+    layers_num: int,
+    heads_num: int,
+    patch_size: int,
+):
+    assert layers_num <= len(attention_weights), f"Cannot visualize more layers than {len(attention_weights)}"
+    layer_step = len(attention_weights) // layers_num
+    layers_to_plot = attention_weights[0::layer_step]
+    rows_num = len(layers_to_plot)
+
+    assert heads_num <= len(layers_to_plot[0]), f"Cannot visualize more heads than {len(layers_to_plot[0])}"
+    head_step = len(layers_to_plot[0]) // heads_num
+    layers_to_plot = [layer[0::head_step] for layer in layers_to_plot]
+    columns_num = len(layers_to_plot[0]) + 1
+
+    fig, axs = plt.subplots(rows_num, columns_num, figsize=(10, 10))
+    axs[0, 0].imshow(base_image.permute(1, 2, 0))
+    plt.axis('off')
+    plt.show()
