@@ -11,9 +11,9 @@ from model.transformer import CaptionTransformer
 
 def main():
     sample_image = "./evaluation/sample_images/surfing.jpg"
+    pretrained_weights_path = "../pretrained_weights/pytorch_model.bin"
     # checkpoints_folder = "./evaluation/checkpoints"
     # summary_folder = "./evaluation/summary"
-    # pretrained_weights_path = "../pretrained_weights/pytorch_model.bin"
 
     dataset_name = "flickr8k"
     dataset_paths = {}
@@ -33,19 +33,19 @@ def main():
 
     hyperparameters = {
         "batches": 32,
-        "max_caption_length": 30,
+        "max_caption_length": 40,
         "vocabulary_size": 5000,
         "banned_tokens": ["<unknown>", "<start>", ""],
-        "embeddings": 256,
-        "dropout_rate": 0.0,
+        "embeddings": 768,
+        "dropout_rate": 0.3,
         "patch_size": 16,
         "image_size": (224, 224),
         "shift_pixels": 5,
-        "encoder_layers": 2,
-        "decoder_layers": 2,
+        "encoder_layers": 12,
+        "decoder_layers": 4,
         "learning_rate": 1e-4,
         "epochs": 100,
-        "heads_num": 4,
+        "heads_num": 12,
         "eval_iterations": 20,
         "eval_per_epoch": 10,
         "device": "cpu",
@@ -75,6 +75,8 @@ def main():
     #         os.makedirs(path)
 
     ct = CaptionTransformer(**hyperparameters)
+    ct.load_weights(pretrained_weights_path)
+
     lit_model = ModelModule(ct, hyperparameters["encode_map"], hyperparameters["learning_rate"])
 
     early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
