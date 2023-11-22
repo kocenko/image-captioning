@@ -70,7 +70,7 @@ def load_flickr30k(
     groups = []
     start = 0
     for size in group_sizes:
-        group = whole_dataset[start: start + size]
+        group = whole_dataset[start : start + size]
         groups.append(group)
         start += size
 

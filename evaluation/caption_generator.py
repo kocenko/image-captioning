@@ -55,7 +55,7 @@ class CaptionGenerator:
         values = topk_output.values[0].tolist()
         return [CandidatePair([ids], val) for ids, val in zip(indices, values)]
 
-    def generate_beam_search(self, image_path: str, beam_width: int) -> str:
+    def generate_beam_search(self, image_path: str, beam_width: int) -> list[int]:
         image = self.transform.read_image(image_path).unsqueeze(0).to(self.device)
         image = self.transform.transform(image)
         caption_start = torch.tensor([self.bos], device=self.device).unsqueeze(0)
@@ -94,9 +94,9 @@ class CaptionGenerator:
         best_caption = max(ready_captions, key=lambda x: x.probability)
         out_caption = [self.bos] + best_caption.indices
         self.model.train()
-        return self.tokenizer.decode(out_caption)
+        return out_caption
 
-    def generate(self, image_path: str, max_size: int, temperature: float = 0.5) -> str:
+    def generate(self, image_path: str, max_size: int, temperature: float = 0.5) -> list[int]:
         """Method used to generate a caption
 
         Args:
@@ -128,7 +128,7 @@ class CaptionGenerator:
 
         self.model.train()
         caption_list = generated_caption[0].tolist()
-        return self.tokenizer.decode(caption_list)
+        return caption_list
 
 
 if __name__ == "__main__":

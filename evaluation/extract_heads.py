@@ -8,8 +8,7 @@ def extract_encoder_heads(model: CaptionTransformer) -> list[list[torch.Tensor]]
     """
 
     encoder_heads = [
-        [head.cpu().detach() for head in block.attention.attention_weights[0]]
-        for block in model.encoder_blocks
+        [head.cpu().detach() for head in block.attention.attention_weights[0]] for block in model.encoder_blocks
     ]
 
     return encoder_heads
@@ -21,8 +20,17 @@ def extract_decoder_heads(model: CaptionTransformer) -> list[list[torch.Tensor]]
     """
 
     decoder_heads = [
-        [head.cpu().detach() for head in block.cross_attention.attention_weights[0]]
-        for block in model.encoder_blocks
+        [head.cpu().detach() for head in block.cross_attention.attention_weights[0]] for block in model.decoder_blocks
     ]
 
     return decoder_heads
+
+
+def aggregate_heads(heads: list[torch.Tensor], method: str = "sum") -> torch.Tensor:
+    assert method in ["sum", "mean"], f"Unsupported aggregation method {method}"
+    stacked_heads = torch.stack(heads, dim=0)
+
+    if method == "sum":
+        return stacked_heads.sum(dim=0)
+    if method == "mean":
+        return stacked_heads.mean(dim=0)

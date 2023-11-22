@@ -12,8 +12,7 @@ from model.transformer import CaptionTransformer
 def main():
     sample_image = "./evaluation/sample_images/surfing.jpg"
     pretrained_weights_path = "../pretrained_weights/pytorch_model.bin"
-    # checkpoints_folder = "./evaluation/checkpoints"
-    # summary_folder = "./evaluation/summary"
+    checkpoints_folder = "./checkpoints"
 
     dataset_name = "flickr8k"
     dataset_paths = {}
@@ -69,11 +68,6 @@ def main():
     hyperparameters["counter"] = lit_data_module.tokenizer.counter
     hyperparameters["encode_map"] = lit_data_module.tokenizer.encode_map
 
-    # # Preparing folders for logging
-    # for path in [checkpoints_folder, summary_folder]:
-    #     if not os.path.exists(path):
-    #         os.makedirs(path)
-
     ct = CaptionTransformer(**hyperparameters)
     ct.load_weights(pretrained_weights_path)
 
@@ -88,10 +82,12 @@ def main():
         device=hyperparameters["device"],
     )
     trainer = Trainer(
+        default_root_dir=checkpoints_folder,
         max_epochs=hyperparameters["epochs"],
         val_check_interval=1 / hyperparameters["eval_per_epoch"],
         limit_val_batches=hyperparameters["eval_iterations"],
         callbacks=[early_stopping, caption_gen],
+        enable_model_summary=False,
     )
     trainer.fit(lit_model, lit_data_module)
 

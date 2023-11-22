@@ -1,4 +1,5 @@
 import os
+import math
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
@@ -163,7 +164,7 @@ def plot_self_attention(
     heads_num: int,
     patches_per_axis: int,
     patch_size: int,
-    show: bool = False
+    show: bool = False,
 ):
     assert layers_num <= len(attention_weights), f"Cannot visualize more layers than {len(attention_weights)}"
     layer_step = len(attention_weights) // layers_num
@@ -176,29 +177,71 @@ def plot_self_attention(
     columns_num = len(heads_ids) + 1
 
     # Choose patch to attend to
-    rec_x = random.randint(0, patches_per_axis-1)
-    rec_y = random.randint(0, patches_per_axis-1)
+    rec_x = random.randint(0, patches_per_axis - 1)
+    rec_y = random.randint(0, patches_per_axis - 1)
     attend_patch = rec_y * patches_per_axis + rec_x
-    rect = patches.Rectangle((rec_x * patch_size, rec_y * patch_size), patch_size, patch_size, linewidth=1, edgecolor='r', facecolor='none')
+    rect = patches.Rectangle(
+        (rec_x * patch_size, rec_y * patch_size), patch_size, patch_size, linewidth=1, edgecolor="r", facecolor="none"
+    )
 
     fig, axs = plt.subplots(rows_num, columns_num, figsize=(10, 10))
     axs[0, 0].imshow(base_image.permute(1, 2, 0))
     axs[0, 0].add_patch(rect)
 
     for layer_id, row_id in zip(layers_ids, range(rows_num)):
-        axs[row_id, 0].axis('off')
+        axs[row_id, 0].axis("off")
         for head_id, column_id in zip(heads_ids, range(1, columns_num)):
             ax = axs[row_id, column_id]
             ax.get_xaxis().set_ticks([])
             ax.get_yaxis().set_ticks([])
             if row_id == 0:
-                ax.set_title(f'Head {head_id}.')
+                ax.set_title(f"Head {head_id}.")
             if column_id == 1:
-                ax.set_ylabel(f'Layer {layer_id}.')
+                ax.set_ylabel(f"Layer {layer_id}.")
             ax.imshow(base_image.permute(1, 2, 0))
             attention = attention_weights[layer_id][head_id][attend_patch].reshape(patches_per_axis, patches_per_axis)
             attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
             ax.imshow(attention, alpha=0.5)
     if show:
         plt.show()
+    return fig
+
+
+def plot_cross_attention(
+    base_image: torch.Tensor,
+    caption_tokens: list[int],
+    attention_weights: torch.Tensor,
+    max_columns: int,
+    patch_size: int,
+    patches_per_axis: int,
+    decode_map: dict,
+    show: bool = False,
+):
+    columns_number = max_columns
+
+    if len(caption_tokens) < max_columns:
+        print(f"Showing only {len(caption_tokens)} columns")
+        columns_number = len(caption_tokens)
+
+    rows_number = math.ceil(len(caption_tokens) / max_columns)
+
+    image = base_image.permute(1, 2, 0)
+    fig, axs = plt.subplots(rows_number, columns_number, figsize=(10, 10))
+    for row_id in range(rows_number):
+        for column_id in range(columns_number):
+            token_i = row_id * max_columns + column_id
+            ax = axs[row_id, column_id] if rows_number > 1 else axs[column_id]
+            ax.get_xaxis().set_ticks([])
+            ax.get_yaxis().set_ticks([])
+            if token_i < len(caption_tokens):
+                ax.set_title(decode_map[caption_tokens[token_i]])
+                ax.imshow(image)
+                attention = attention_weights[token_i].reshape(patches_per_axis, patches_per_axis)
+                attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
+                ax.imshow(attention, alpha=0.5)
+            else:
+                ax.axis("off")
+    if show:
+        plt.show()
+
     return fig

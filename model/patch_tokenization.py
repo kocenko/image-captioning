@@ -41,12 +41,7 @@ class PatchTokenizer(nn.Module):
     """
 
     def __init__(
-        self,
-        image_size: tuple[int, int],
-        patch_size: int,
-        embeddings: int,
-        device: str,
-        shift: Optional[int] = None
+        self, image_size: tuple[int, int], patch_size: int, embeddings: int, device: str, shift: Optional[int] = None
     ):
         super().__init__()
         assert (

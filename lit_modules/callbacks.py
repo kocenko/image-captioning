@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 from torchvision.io import read_image
 from lightning.pytorch.callbacks import Callback
 
-from evaluation.extract_heads import extract_encoder_heads
-from evaluation.visualizing import plot_self_attention
+from evaluation.extract_heads import extract_encoder_heads, extract_decoder_heads, aggregate_heads
+from evaluation.visualizing import plot_self_attention, plot_cross_attention
 from evaluation.caption_generator import CaptionGenerator
 
 
@@ -17,17 +17,12 @@ class GenerateCaption(Callback):
         self.dv = device
 
     def on_train_epoch_start(self, trainer, pl_module) -> None:
-        generator = CaptionGenerator(
-            pl_module.model,
-            self.tk,
-            self.it,
-            self.vs,
-            self.dv
-        )
-        generated_caption = generator.generate_beam_search(self.si, 3)
+        generator = CaptionGenerator(pl_module.model, self.tk, self.it, self.vs, self.dv)
+        raw_caption = generator.generate_beam_search(self.si, 3)
+        generated_caption = self.tk.decode(raw_caption)
         image = read_image(self.si).permute(1, 2, 0)
         fig, ax = plt.subplots(1)
-        plt.axis('off')
+        plt.axis("off")
         ax.imshow(image)
         bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=1.0)
         ax.text(
@@ -40,9 +35,17 @@ class GenerateCaption(Callback):
             bbox=bbox_props,
         )
         tensorboard = pl_module.logger.experiment
-        tensorboard.add_figure('captioned_image', fig)
+        tensorboard.add_figure("captioned_image", fig)
+
+        transformed_image = self.it.transform(image.permute(2, 0, 1))
 
         encoder_heads = extract_encoder_heads(pl_module.model)
-        self_att_fig = plot_self_attention(self.it.transform(image.permute(2, 0, 1)), encoder_heads, 3, 4, 14, patch_size=16)
-        tensorboard.add_figure('self_attention', self_att_fig)
+        self_att_fig = plot_self_attention(transformed_image, encoder_heads, 3, 4, 14, patch_size=16)
+        tensorboard.add_figure("self_attention", self_att_fig)
 
+        decoder_heads = extract_decoder_heads(pl_module.model)[-1]  # Last cross attention layer
+        aggregated_heads = aggregate_heads(decoder_heads)
+        cross_att_fig = plot_cross_attention(
+            transformed_image, raw_caption, aggregated_heads, 8, 16, 14, self.tk.decode_map
+        )
+        tensorboard.add_figure("cross_attention", cross_att_fig)

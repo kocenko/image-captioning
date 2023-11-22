@@ -11,8 +11,8 @@ from data_processing.dataset_reader import load_flickr8k, load_flickr30k
 
 class DataModule(LightningDataModule):
     DATA_READER_MAP = {
-        'flickr8k': load_flickr8k,
-        'flickr30k': load_flickr30k,
+        "flickr8k": load_flickr8k,
+        "flickr30k": load_flickr30k,
     }
 
     def __init__(
@@ -27,7 +27,7 @@ class DataModule(LightningDataModule):
     ):
         super().__init__()
 
-        assert dataset_name in ['flickr8k', 'flickr30k'], f'Dataset of given name {dataset_name} was not implemented'
+        assert dataset_name in ["flickr8k", "flickr30k"], f"Dataset of given name {dataset_name} was not implemented"
         self.raw_datasets = DataModule.DATA_READER_MAP[dataset_name](**dataset_paths)
         self.tokenizer = Tokenizer([caption for _, caption in self.raw_datasets[0]], max_sequence_size, vocabulary_size)
         self.transform = ImageTransforms(image_size)

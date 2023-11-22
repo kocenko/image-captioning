@@ -24,7 +24,7 @@ class ModelModule(LightningModule):
 
     def loss_function(self, logits: torch.Tensor, target: torch.Tensor):
         padding_token = self.encode_map[Tokenizer.empty_token]
-        loss = cross_entropy(logits, target, ignore_index=padding_token, reduction='none')
+        loss = cross_entropy(logits, target, ignore_index=padding_token, reduction="none")
         mask = (target != padding_token) & (loss < 1e8)
         loss = loss * mask
         loss = torch.sum(loss) / torch.sum(mask)
@@ -34,13 +34,12 @@ class ModelModule(LightningModule):
         image, caption_sample, caption_target = batch
         logits = self(image, caption_sample)
         loss = self.loss_function(logits, caption_target)
-        self.log('train_loss', loss)
+        self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         image, caption_sample, caption_target = batch
         logits = self(image, caption_sample)
         loss = self.loss_function(logits, caption_target)
-        self.log('val_loss', loss)
+        self.log("val_loss", loss)
         return loss
-
