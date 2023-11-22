@@ -57,7 +57,7 @@ def load_flickr30k(
 
     whole_dataset = []
     for line in tqdm.tqdm(content.splitlines()):
-        split_list = line.split(",", maxsplit=1)
+        split_list = line.split("\t", maxsplit=1)
         if len(split_list) == 2 and split_list[0] in images_paths:
             whole_dataset.append((os.path.join(images_path, split_list[0]), split_list[1]))
 
