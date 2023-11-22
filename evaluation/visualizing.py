@@ -201,7 +201,7 @@ def plot_self_attention(
             ax.imshow(base_image.permute(1, 2, 0))
             attention = attention_weights[layer_id][head_id][attend_patch].reshape(patches_per_axis, patches_per_axis)
             attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
-            ax.imshow(attention, alpha=0.5)
+            ax.imshow(attention, alpha=0.5, cmap='greys')
     if show:
         plt.show()
     return fig
@@ -233,12 +233,12 @@ def plot_cross_attention(
             ax = axs[row_id, column_id] if rows_number > 1 else axs[column_id]
             ax.get_xaxis().set_ticks([])
             ax.get_yaxis().set_ticks([])
-            if token_i < len(caption_tokens):
+            if token_i < attention_weights.shape[0]:
                 ax.set_title(decode_map[caption_tokens[token_i]])
                 ax.imshow(image)
                 attention = attention_weights[token_i].reshape(patches_per_axis, patches_per_axis)
                 attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
-                ax.imshow(attention, alpha=0.5)
+                ax.imshow(attention, alpha=0.5, cmap='greys')
             else:
                 ax.axis("off")
     if show:
