@@ -10,7 +10,7 @@ from model.transformer import CaptionTransformer
 
 
 def main():
-    sample_image = "./evaluation/sample_images/surfing.jpg"
+    sample_image = "./evaluation/sample_images/bikes.jpg"
     pretrained_weights_path = "../pretrained_weights/pytorch_model.bin"
     checkpoints_folder = "./checkpoints"
 
