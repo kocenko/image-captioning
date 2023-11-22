@@ -16,7 +16,7 @@ class GenerateCaption(Callback):
         self.vs = vocab_size
         self.dv = device
 
-    def on_train_epoch_start(self, trainer, pl_module) -> None:
+    def on_train_epoch_end(self, trainer, pl_module) -> None:
         generator = CaptionGenerator(pl_module.model, self.tk, self.it, self.vs, self.dv)
         raw_caption = generator.generate_beam_search(self.si, 3)
         generated_caption = self.tk.decode(raw_caption)
