@@ -8,7 +8,7 @@ def extract_encoder_heads(model: CaptionTransformer) -> list[list[torch.Tensor]]
     """
 
     encoder_heads = [
-        [head for head in block.attention.attention_weights[0]]
+        [head.cpu().detach() for head in block.attention.attention_weights[0]]
         for block in model.encoder_blocks
     ]
 
@@ -21,7 +21,7 @@ def extract_decoder_heads(model: CaptionTransformer) -> list[list[torch.Tensor]]
     """
 
     decoder_heads = [
-        [head for head in block.cross_attention.attention_weights[0]]
+        [head.cpu().detach() for head in block.cross_attention.attention_weights[0]]
         for block in model.encoder_blocks
     ]
 

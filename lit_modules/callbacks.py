@@ -42,6 +42,7 @@ class GenerateCaption(Callback):
         tensorboard = pl_module.logger.experiment
         tensorboard.add_figure('captioned_image', fig)
 
-        # encoder_heads = extract_encoder_heads(pl_module.model)
-        # plot_self_attention(self.it.transform(image.permute(2, 0, 1)), encoder_heads, 3, 4, 16)
+        encoder_heads = extract_encoder_heads(pl_module.model)
+        self_att_fig = plot_self_attention(self.it.transform(image.permute(2, 0, 1)), encoder_heads, 3, 4, 14, patch_size=16)
+        tensorboard.add_figure('self_attention', self_att_fig)
 

@@ -1,5 +1,6 @@
 import os
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import numpy as np
 import random
 import torch
@@ -160,19 +161,44 @@ def plot_self_attention(
     attention_weights: list[list[torch.Tensor]],
     layers_num: int,
     heads_num: int,
+    patches_per_axis: int,
     patch_size: int,
+    show: bool = False
 ):
     assert layers_num <= len(attention_weights), f"Cannot visualize more layers than {len(attention_weights)}"
     layer_step = len(attention_weights) // layers_num
-    layers_to_plot = attention_weights[0::layer_step]
-    rows_num = len(layers_to_plot)
+    layers_ids = list(range(0, len(attention_weights), layer_step))
+    rows_num = layers_num
 
-    assert heads_num <= len(layers_to_plot[0]), f"Cannot visualize more heads than {len(layers_to_plot[0])}"
-    head_step = len(layers_to_plot[0]) // heads_num
-    layers_to_plot = [layer[0::head_step] for layer in layers_to_plot]
-    columns_num = len(layers_to_plot[0]) + 1
+    assert heads_num <= len(attention_weights[0]), f"Cannot visualize more heads than {len(attention_weights[0])}"
+    head_step = len(attention_weights[0]) // heads_num
+    heads_ids = list(range(0, len(attention_weights[0]), head_step))
+    columns_num = len(heads_ids) + 1
+
+    # Choose patch to attend to
+    rec_x = random.randint(0, patches_per_axis-1)
+    rec_y = random.randint(0, patches_per_axis-1)
+    attend_patch = rec_y * patches_per_axis + rec_x
+    rect = patches.Rectangle((rec_x * patch_size, rec_y * patch_size), patch_size, patch_size, linewidth=1, edgecolor='r', facecolor='none')
 
     fig, axs = plt.subplots(rows_num, columns_num, figsize=(10, 10))
     axs[0, 0].imshow(base_image.permute(1, 2, 0))
-    plt.axis('off')
-    plt.show()
+    axs[0, 0].add_patch(rect)
+
+    for layer_id, row_id in zip(layers_ids, range(rows_num)):
+        axs[row_id, 0].axis('off')
+        for head_id, column_id in zip(heads_ids, range(1, columns_num)):
+            ax = axs[row_id, column_id]
+            ax.get_xaxis().set_ticks([])
+            ax.get_yaxis().set_ticks([])
+            if row_id == 0:
+                ax.set_title(f'Head {head_id}.')
+            if column_id == 1:
+                ax.set_ylabel(f'Layer {layer_id}.')
+            ax.imshow(base_image.permute(1, 2, 0))
+            attention = attention_weights[layer_id][head_id][attend_patch].reshape(patches_per_axis, patches_per_axis)
+            attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
+            ax.imshow(attention, alpha=0.5)
+    if show:
+        plt.show()
+    return fig
