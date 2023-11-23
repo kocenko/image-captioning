@@ -28,8 +28,8 @@ class GenerateCaption(Callback):
         tensorboard.add_figure("captioned_image", captioned_fig)
 
         # Refitting the model
-        dummy_caption = torch.tensor(raw_caption, device=self.tk.device).unsqueeze(0)
-        dummy_image = self.it.transform(self.it.read_image(self.si).unsqueeze(0).to(self.tk.device))
+        dummy_caption = torch.tensor(raw_caption, device=self.dv).unsqueeze(0)
+        dummy_image = self.it.transform(self.it.read_image(self.si).unsqueeze(0).to(self.dv))
         pl_module.model(dummy_image, dummy_caption)
 
         encoder_heads = extract_encoder_heads(pl_module.model)
