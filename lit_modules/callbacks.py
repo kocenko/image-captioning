@@ -1,7 +1,8 @@
+import torch
 from torchvision.io import read_image
 from lightning.pytorch.callbacks import Callback
 
-from evaluation.extract_heads import aggregate_heads
+from evaluation.extract_heads import aggregate_heads, extract_decoder_heads, extract_encoder_heads
 from evaluation.visualizing import plot_self_attention, plot_cross_attention, plot_captioned_image
 from evaluation.caption_generator import CaptionGenerator
 
@@ -20,17 +21,24 @@ class GenerateCaption(Callback):
 
         image = read_image(self.si).permute(1, 2, 0)
         generator = CaptionGenerator(pl_module.model, self.tk, self.it, self.vs, self.dv)
-        raw_caption, encoder_heads, decoder_heads = generator.generate_beam_search(self.si, 3)
+        raw_caption = generator.generate_beam_search(self.si, 3)
         generated_caption = self.tk.decode(raw_caption)
 
         captioned_fig = plot_captioned_image(image, generated_caption)
         tensorboard.add_figure("captioned_image", captioned_fig)
 
+        # Refitting the model
+        dummy_caption = torch.tensor(raw_caption).unsqueeze(0)
+        dummy_image = self.it.transform(self.it.read_image(self.si).unsqueeze(0))
+        pl_module.model(dummy_image, dummy_caption)
+
+        encoder_heads = extract_encoder_heads(pl_module.model)
         transformed_image = self.it.transform(image.permute(2, 0, 1))
         self_att_fig = plot_self_attention(transformed_image, encoder_heads, 3, 4, 14, 16)
         tensorboard.add_figure("self_attention", self_att_fig)
 
-        aggregated_heads = aggregate_heads(decoder_heads)
+        decoder_heads = extract_decoder_heads(pl_module.model)
+        aggregated_heads = aggregate_heads(decoder_heads, method='mean')
         cross_att_fig = plot_cross_attention(
             transformed_image, raw_caption, aggregated_heads, 8, 16, 14, self.tk.decode_map
         )
