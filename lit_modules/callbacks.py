@@ -15,7 +15,7 @@ class GenerateCaption(Callback):
         self.vs = vocab_size
         self.dv = device
 
-    def on_train_epoch_start(self, trainer, pl_module) -> None:
+    def on_train_epoch_end(self, trainer, pl_module) -> None:
         tensorboard = pl_module.logger.experiment
 
         image = read_image(self.si).permute(1, 2, 0)
@@ -23,15 +23,15 @@ class GenerateCaption(Callback):
         raw_caption, encoder_heads, decoder_heads = generator.generate_beam_search(self.si, 3)
         generated_caption = self.tk.decode(raw_caption)
 
-        captioned_fig = plot_captioned_image(image, generated_caption, True)
+        captioned_fig = plot_captioned_image(image, generated_caption)
         tensorboard.add_figure("captioned_image", captioned_fig)
 
         transformed_image = self.it.transform(image.permute(2, 0, 1))
-        self_att_fig = plot_self_attention(transformed_image, encoder_heads, 3, 4, 14, 16, True)
+        self_att_fig = plot_self_attention(transformed_image, encoder_heads, 3, 4, 14, 16)
         tensorboard.add_figure("self_attention", self_att_fig)
 
         aggregated_heads = aggregate_heads(decoder_heads)
         cross_att_fig = plot_cross_attention(
-            transformed_image, raw_caption, aggregated_heads, 8, 16, 14, self.tk.decode_map, True
+            transformed_image, raw_caption, aggregated_heads, 8, 16, 14, self.tk.decode_map
         )
         tensorboard.add_figure("cross_attention", cross_att_fig)
