@@ -7,8 +7,8 @@ class ImageTransforms:
     IMAGENET_MEAN = [0.5, 0.5, 0.5]
     IMAGENET_STD = [0.5, 0.5, 0.5]
 
-    def __init__(self, image_size: tuple[int, int]):
-        resize = Resize(image_size, antialias=True)
+    def __init__(self, image_size: int):
+        resize = Resize((image_size, image_size), antialias=True)
         normalize = Normalize(mean=ImageTransforms.IMAGENET_MEAN, std=ImageTransforms.IMAGENET_STD)
         change_data_type = ToDtype(torch.float32, scale=True)
         self.transformations = Compose([resize, change_data_type, normalize])

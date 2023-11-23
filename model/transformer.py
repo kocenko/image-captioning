@@ -25,7 +25,7 @@ class CaptionTransformer(nn.Module):
         encoder_layers = config["encoder_layers"]
         decoder_layers = config["decoder_layers"]
         device = config["device"]
-        patches_num = (image_size[0] // patch_size) * (image_size[1] // patch_size)
+        patches_num = (image_size // patch_size) ** 2
 
         self.encoder_input = EncoderInput(image_size, shift_pixels, patch_size, embeddings, device)
         self.encoder_blocks = nn.Sequential(

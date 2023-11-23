@@ -1,4 +1,5 @@
 import torch
+import yaml
 
 from lightning import Trainer
 from lightning.pytorch.callbacks import EarlyStopping
@@ -10,45 +11,16 @@ from model.transformer import CaptionTransformer
 
 
 def main():
-    sample_image = "./evaluation/sample_images/bikes.jpg"
-    pretrained_weights_path = "../pretrained_weights/pytorch_model.bin"
-    checkpoints_folder = "./checkpoints"
+    config_file = "configs/patching_small_flickr8k_surfing_homepc.yaml"
+    with open(config_file, "r") as file:
+        config = yaml.safe_load(file)
 
-    dataset_name = "flickr8k"
-    dataset_paths = {}
-    if dataset_name == "flickr8k":
-        dataset_paths = {
-            "tokens_path": "../dataset/Flickr8k.token.txt",
-            "train_path": "../dataset/Flickr_8k.trainImages.txt",
-            "valid_path": "../dataset/Flickr_8k.devImages.txt",
-            "test_path": "../dataset/Flickr_8k.testImages.txt",
-            "images_path": "../dataset/images",
-        }
-    elif dataset_name == "flickr30k":
-        dataset_paths = {
-            "tokens_path": "../dataset/flickr30k/captions.txt",
-            "images_path": "../dataset/flickr30k/Images",
-        }
-
-    hyperparameters = {
-        "batches": 32,
-        "max_caption_length": 40,
-        "vocabulary_size": 5000,
-        "banned_tokens": ["<unknown>", "<start>", ""],
-        "embeddings": 768,
-        "dropout_rate": 0.3,
-        "patch_size": 16,
-        "image_size": (224, 224),
-        "shift_pixels": 5,
-        "encoder_layers": 12,
-        "decoder_layers": 4,
-        "learning_rate": 1e-4,
-        "epochs": 100,
-        "heads_num": 12,
-        "eval_iterations": 20,
-        "eval_per_epoch": 10,
-        "device": "cpu",
-    }
+    dataset_name = config["dataset_name"]
+    dataset_paths = config["dataset_paths"]
+    hyperparameters = config["hyperparameters"]
+    sample_image = config["sample_image"]
+    checkpoints_folder = config["checkpoints_folder"]
+    pretrained_weights_path = config.get("pretrained_weights_path", False)
 
     if torch.cuda.is_available():
         hyperparameters["device"] = "cuda"
@@ -69,10 +41,10 @@ def main():
     hyperparameters["encode_map"] = lit_data_module.tokenizer.encode_map
 
     ct = CaptionTransformer(**hyperparameters)
-    ct.load_weights(pretrained_weights_path)
+    if pretrained_weights_path:
+        ct.load_weights(pretrained_weights_path)
 
     lit_model = ModelModule(ct, hyperparameters["encode_map"], hyperparameters["learning_rate"])
-
     early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
     caption_gen = GenerateCaption(
         sample_image,
@@ -81,13 +53,14 @@ def main():
         hyperparameters["vocabulary_size"],
         device=hyperparameters["device"],
     )
+
     trainer = Trainer(
         default_root_dir=checkpoints_folder,
         max_epochs=hyperparameters["epochs"],
-        val_check_interval=1 / hyperparameters["eval_per_epoch"],
+        limit_train_batches=hyperparameters["steps_per_epoch"],
         limit_val_batches=hyperparameters["eval_iterations"],
         callbacks=[early_stopping, caption_gen],
-        enable_model_summary=False,
+        enable_model_summary=True,
     )
     trainer.fit(lit_model, lit_data_module)
 

@@ -8,14 +8,14 @@ from model.patch_tokenization import PatchTokenizer
 class EncoderInput(nn.Module):
     def __init__(
         self,
-        image_size: tuple[int, int],
+        image_size: int,
         shift_pixels: int,
         patch_size: int,
         embeddings: int,
         device: str,
     ):
         super().__init__()
-        patches_num = (image_size[0] // patch_size) * (image_size[1] // patch_size)
+        patches_num = (image_size // patch_size) ** 2
         self.patch_tokenizer = PatchTokenizer(image_size, patch_size, embeddings, device, shift_pixels)
         self.positional_embedding = nn.Embedding(patches_num, embeddings, device=device)
         self.register_buffer("sequence_indices", torch.arange(patches_num, device=device), persistent=False)

@@ -40,12 +40,10 @@ class PatchTokenizer(nn.Module):
         flatten (nn.Flatten): layer used to flatten the output
     """
 
-    def __init__(
-        self, image_size: tuple[int, int], patch_size: int, embeddings: int, device: str, shift: Optional[int] = None
-    ):
+    def __init__(self, image_size: int, patch_size: int, embeddings: int, device: str, shift: Optional[int] = None):
         super().__init__()
         assert (
-            image_size[0] % patch_size == 0
+            image_size % patch_size == 0
         ), f"Image size should be divisible by patch size. Got image size: {image_size},  patch size: {patch_size}"
 
         shifted_patches = []

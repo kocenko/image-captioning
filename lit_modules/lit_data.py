@@ -21,7 +21,7 @@ class DataModule(LightningDataModule):
         dataset_paths: dict,
         max_sequence_size: int,
         vocabulary_size: int,
-        image_size: tuple[int, int],
+        image_size: int,
         batch_size: int,
         device: str,
     ):

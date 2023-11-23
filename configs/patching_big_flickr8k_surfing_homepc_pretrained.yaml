@@ -1,0 +1,28 @@
+dataset_name: "flickr8k"
+dataset_paths:
+  tokens_path: "../dataset/Flickr8k.token.txt"
+  train_path: "../dataset/Flickr_8k.trainImages.txt"
+  valid_path: "../dataset/Flickr_8k.devImages.txt"
+  test_path: "../dataset/Flickr_8k.testImages.txt"
+  images_path: "../dataset/images"
+hyperparameters:
+  batches: 32
+  max_caption_length: 50
+  vocabulary_size: 5000
+  banned_tokens: ["<unknown>", "<start>", ""]
+  embeddings: 768
+  dropout_rate: 0.5
+  patch_size: 16
+  image_size: 224
+  shift_pixels: 5
+  encoder_layers: 12
+  decoder_layers: 4
+  learning_rate: 0.0001
+  epochs: 100
+  heads_num: 12
+  eval_iterations: 20
+  steps_per_epoch: 100
+  device: "cpu"
+sample_image: "./evaluation/sample_images/surfing.jpg"
+checkpoints_folder: "./checkpoints"
+pretrained_weights_path: "../pretrained_weights/pytorch_model.bin"

@@ -1,7 +1,3 @@
-import warnings
-
-warnings.filterwarnings("ignore", module="matplotlib/")
-
 import os
 import math
 import matplotlib.pyplot as plt
@@ -118,6 +114,7 @@ def plot_filters(filters: np.ndarray, how_many: int, normalize: bool = True, see
     """Used for plotting the filter shapes and weights of the last layer
 
     Args:
+        filters (np.ndarray): filters to visualize
         how_many (int): number of filters to visualize
         normalize (bool): whether the weights should be normalized before visualization
         seed (int): passed to the random generator. Used for reproducibility
@@ -189,12 +186,16 @@ def plot_self_attention(
     patch_size: int,
     show: bool = False,
 ):
-    assert layers_num <= len(attention_weights), f"Cannot visualize more layers than {len(attention_weights)}"
+    if layers_num > len(attention_weights):
+        print(f"Cannot visualize more layers than {len(attention_weights)}")
+        layers_num = len(attention_weights)
     layer_step = len(attention_weights) // layers_num
     layers_ids = list(range(0, len(attention_weights), layer_step))
     rows_num = layers_num
 
-    assert heads_num <= len(attention_weights[0]), f"Cannot visualize more heads than {len(attention_weights[0])}"
+    if heads_num > len(attention_weights[0]):
+        print(f"Cannot visualize more heads than {len(attention_weights[0])}")
+        heads_num = len(attention_weights[0])
     head_step = len(attention_weights[0]) // heads_num
     heads_ids = list(range(0, len(attention_weights[0]), head_step))
     columns_num = len(heads_ids) + 1
