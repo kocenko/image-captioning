@@ -183,7 +183,6 @@ def plot_self_attention(
     layers_num: int,
     heads_num: int,
     patches_per_axis: int,
-    patch_size: int,
     show: bool = False,
 ):
     if layers_num > len(attention_weights):
@@ -200,6 +199,9 @@ def plot_self_attention(
     heads_ids = list(range(0, len(attention_weights[0]), head_step))
     columns_num = len(heads_ids) + 1
 
+    image = base_image.permute(1, 2, 0).detach().cpu().numpy()
+    patch_size = image.shape[0] // patches_per_axis
+
     # Choose patch to attend to
     rec_x = random.randint(0, patches_per_axis - 1)
     rec_y = random.randint(0, patches_per_axis - 1)
@@ -208,7 +210,6 @@ def plot_self_attention(
         (rec_x * patch_size, rec_y * patch_size), patch_size, patch_size, linewidth=1, edgecolor="r", facecolor="none"
     )
 
-    image = base_image.permute(1, 2, 0).detach().cpu().numpy()
     fig, axs = plt.subplots(rows_num, columns_num, figsize=(10, 10))
     axs[0, 0].imshow(image)
     axs[0, 0].add_patch(rect)
@@ -228,6 +229,7 @@ def plot_self_attention(
             attention = attention.detach().cpu().numpy()
             attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
             ax.imshow(attention, alpha=0.5, cmap="gray", interpolation="bilinear")
+    fig.tight_layout()
     if show:
         plt.show()
     return fig
@@ -238,7 +240,6 @@ def plot_cross_attention(
     caption_tokens: list[int],
     attention_weights: torch.Tensor,
     max_columns: int,
-    patch_size: int,
     patches_per_axis: int,
     decode_map: dict,
     show: bool = False,
@@ -251,6 +252,8 @@ def plot_cross_attention(
     rows_number = math.ceil(len(caption_tokens) / max_columns)
 
     image = base_image.permute(1, 2, 0).detach().cpu().numpy()
+    patch_size = image.shape[0] // patches_per_axis
+
     fig, axs = plt.subplots(rows_number, columns_number, figsize=(10, 10))
     for row_id in range(rows_number):
         for column_id in range(columns_number):
@@ -267,6 +270,7 @@ def plot_cross_attention(
                 ax.imshow(attention, alpha=0.5, cmap="gray", interpolation="bilinear")
             else:
                 ax.axis("off")
+    fig.tight_layout()
     if show:
         plt.show()
 
