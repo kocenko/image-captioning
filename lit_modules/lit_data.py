@@ -23,7 +23,6 @@ class DataModule(LightningDataModule):
         vocabulary_size: int,
         image_size: int,
         batch_size: int,
-        device: str,
     ):
         super().__init__()
 
@@ -32,16 +31,15 @@ class DataModule(LightningDataModule):
         self.tokenizer = Tokenizer([caption for _, caption in self.raw_datasets[0]], max_sequence_size, vocabulary_size)
         self.transform = ImageTransforms(image_size)
         self.batch_size = batch_size
-        self.device = device
 
         self.train: Optional[ImageCaptionDataset] = None
         self.val: Optional[ImageCaptionDataset] = None
         self.test: Optional[ImageCaptionDataset] = None
 
     def setup(self, stage: str) -> None:
-        self.train = ImageCaptionDataset(self.raw_datasets[0], self.tokenizer, self.transform, self.device)
-        self.val = ImageCaptionDataset(self.raw_datasets[1], self.tokenizer, self.transform, self.device)
-        self.test = ImageCaptionDataset(self.raw_datasets[2], self.tokenizer, self.transform, self.device)
+        self.train = ImageCaptionDataset(self.raw_datasets[0], self.tokenizer, self.transform)
+        self.val = ImageCaptionDataset(self.raw_datasets[1], self.tokenizer, self.transform)
+        self.test = ImageCaptionDataset(self.raw_datasets[2], self.tokenizer, self.transform)
 
     def train_dataloader(self):
         return DataLoader(self.train, batch_size=self.batch_size, shuffle=True)

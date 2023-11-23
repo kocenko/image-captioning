@@ -12,13 +12,12 @@ class EncoderInput(nn.Module):
         shift_pixels: int,
         patch_size: int,
         embeddings: int,
-        device: str,
     ):
         super().__init__()
         patches_num = (image_size // patch_size) ** 2
-        self.patch_tokenizer = PatchTokenizer(image_size, patch_size, embeddings, device, shift_pixels)
-        self.positional_embedding = nn.Embedding(patches_num, embeddings, device=device)
-        self.register_buffer("sequence_indices", torch.arange(patches_num, device=device), persistent=False)
+        self.patch_tokenizer = PatchTokenizer(image_size, patch_size, embeddings, shift_pixels)
+        self.positional_embedding = nn.Embedding(patches_num, embeddings)
+        self.register_buffer("sequence_indices", torch.arange(patches_num), persistent=False)
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         patches = self.patch_tokenizer(image)
@@ -35,29 +34,27 @@ class EncoderBlock(nn.Module):
         dropout_rate: float,
         heads_num: int,
         patches_num: int,
-        device: str,
     ):
         super().__init__()
-        self.pre_normalization = nn.LayerNorm(embeddings, device=device)
+        self.pre_normalization = nn.LayerNorm(embeddings)
         self.attention = MultiHeadAttention(
             input_shapes=(embeddings, embeddings, embeddings),
             embeddings_number=embeddings,
             heads_number=heads_num,
-            device=device,
             trainable_scale=True,
         )
-        self.post_normalization = nn.LayerNorm(embeddings, device=device)
+        self.post_normalization = nn.LayerNorm(embeddings)
 
         self.feed_forward = nn.Sequential(
-            nn.Linear(embeddings, 4 * embeddings, device=device),
+            nn.Linear(embeddings, 4 * embeddings),
             nn.GELU(),
-            nn.Linear(4 * embeddings, embeddings, device=device),
+            nn.Linear(4 * embeddings, embeddings),
             nn.Dropout(dropout_rate),
         )
 
         # Used to ensure Locality Self Attention
         # noinspection PyTypeChecker
-        self.register_buffer("diagonal_mask", torch.eye(patches_num, device=device) == 1)
+        self.register_buffer("diagonal_mask", torch.eye(patches_num) == 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_norm = self.pre_normalization(x)

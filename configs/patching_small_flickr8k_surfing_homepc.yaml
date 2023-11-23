@@ -22,6 +22,5 @@ hyperparameters:
   heads_num: 2
   eval_iterations: 20
   steps_per_epoch: 100
-  device: "cpu"
 sample_image: "./evaluation/sample_images/surfing.jpg"
 checkpoints_folder: "./checkpoints"

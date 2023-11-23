@@ -14,13 +14,11 @@ class ImageCaptionDataset(Dataset):
         dataset (list[tuple[str, str]]): list of tuple pairs: (image path, raw caption)
         tokenizer (Tokenizer): tokenizer object
         transform (ImageTransforms): transforms image
-        device (str): indicates on which device the image will be saved
 
     Attributes:
         dataset (list[tuple[str, str]]): list of tuple pairs: (image path, raw caption)
         tokenizer (Tokenizer): tokenizer object
         transform (ImageTransforms): transforms image
-        device (str): indicates on which device the image will be saved
     """
 
     def __init__(
@@ -28,20 +26,18 @@ class ImageCaptionDataset(Dataset):
         dataset: list[tuple[str, str]],
         tokenizer: Tokenizer,
         transform: ImageTransforms,
-        device: str,
     ) -> None:
         self.dataset = dataset
         self.tokenizer = tokenizer
         self.transform = transform
-        self.device = device
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, index: int) -> Any:
-        img = self.transform.read_image(self.dataset[index][0]).to(self.device)
+        img = self.transform.read_image(self.dataset[index][0])
         img = self.transform.transform(img)
-        cap = torch.tensor(self.tokenizer.encode(self.dataset[index][1]), device=self.device)
+        cap = torch.tensor(self.tokenizer.encode(self.dataset[index][1]))
         return img, cap[:-1], cap[1:]
 
 

@@ -24,22 +24,18 @@ class CaptionTransformer(nn.Module):
         shift_pixels = config["shift_pixels"]
         encoder_layers = config["encoder_layers"]
         decoder_layers = config["decoder_layers"]
-        device = config["device"]
         patches_num = (image_size // patch_size) ** 2
 
-        self.encoder_input = EncoderInput(image_size, shift_pixels, patch_size, embeddings, device)
+        self.encoder_input = EncoderInput(image_size, shift_pixels, patch_size, embeddings)
         self.encoder_blocks = nn.Sequential(
-            *[EncoderBlock(embeddings, dropout_rate, heads_num, patches_num, device) for _ in range(encoder_layers)]
+            *[EncoderBlock(embeddings, dropout_rate, heads_num, patches_num) for _ in range(encoder_layers)]
         )
 
-        self.decoder_input = DecoderInput(vocabulary_size, max_caption_length, embeddings, device)
+        self.decoder_input = DecoderInput(vocabulary_size, max_caption_length, embeddings)
         self.decoder_blocks = nn.ModuleList(
-            [
-                DecoderBlock(embeddings, dropout_rate, heads_num, max_caption_length, device)
-                for _ in range(decoder_layers)
-            ]
+            [DecoderBlock(embeddings, dropout_rate, heads_num, max_caption_length) for _ in range(decoder_layers)]
         )
-        self.output_layer = DecoderOutput(embeddings, vocabulary_size, device, True, counter, encode_map, banned_tokens)
+        self.output_layer = DecoderOutput(embeddings, vocabulary_size, True, counter, encode_map, banned_tokens)
 
     def forward(self, image: torch.Tensor, caption: torch.Tensor):
         image_embeddings = self.encoder_input(image)

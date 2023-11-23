@@ -15,20 +15,19 @@ class DecoderInput(nn.Module):
         vocabulary_size: int,
         max_caption_length: int,
         embeddings: int,
-        device: str,
         padding_idx: int = 0,
         pos_n: int = 1000,
     ):
         super().__init__()
         assert embeddings % 2 == 0, f"Embeddings dimension should be divisible by 2 to perform fast positional encoding"
 
-        self.token_embedding = nn.Embedding(vocabulary_size, embeddings, padding_idx=padding_idx, device=device)
+        self.token_embedding = nn.Embedding(vocabulary_size, embeddings, padding_idx=padding_idx)
 
         # Calculating positional encoding based on the "Attention is All You Need"
         # Based on: https://medium.com/@hunter-j-phillips/positional-encoding-7a93db4109e6
         sequence_indices = torch.arange(max_caption_length).unsqueeze(1)
         divisor_term = torch.exp(torch.arange(0, embeddings, 2).float() * (-math.log(pos_n) / embeddings))
-        positional_encoding = torch.zeros(max_caption_length, embeddings, device=device)
+        positional_encoding = torch.zeros(max_caption_length, embeddings)
         positional_encoding[:, 0::2] = torch.sin(sequence_indices * divisor_term)
         positional_encoding[:, 1::2] = torch.cos(sequence_indices * divisor_term)
         positional_encoding = positional_encoding.unsqueeze(0)
@@ -49,38 +48,35 @@ class DecoderBlock(nn.Module):
         dropout_rate: float,
         heads_num: int,
         max_caption_length: int,
-        device: str,
     ):
         super().__init__()
-        self.self_attention_pre_normalization = nn.LayerNorm(embeddings, device=device)
+        self.self_attention_pre_normalization = nn.LayerNorm(embeddings)
         self.self_attention = MultiHeadAttention(
             input_shapes=(embeddings, embeddings, embeddings),
             embeddings_number=embeddings,
             heads_number=heads_num,
-            device=device,
         )
-        self.self_attention_post_normalization = nn.LayerNorm(embeddings, device=device)
+        self.self_attention_post_normalization = nn.LayerNorm(embeddings)
 
-        self.cross_attention_pre_normalization = nn.LayerNorm(embeddings, device=device)
+        self.cross_attention_pre_normalization = nn.LayerNorm(embeddings)
         self.cross_attention = MultiHeadAttention(
             input_shapes=(embeddings, embeddings, embeddings),
             embeddings_number=embeddings,
             heads_number=heads_num,
-            device=device,
         )
-        self.cross_attention_post_normalization = nn.LayerNorm(embeddings, device=device)
+        self.cross_attention_post_normalization = nn.LayerNorm(embeddings)
 
         self.feed_forward = nn.Sequential(
-            nn.Linear(embeddings, 4 * embeddings, device=device),
+            nn.Linear(embeddings, 4 * embeddings),
             nn.GELU(),
-            nn.Linear(4 * embeddings, embeddings, device=device),
+            nn.Linear(4 * embeddings, embeddings),
             nn.Dropout(dropout_rate),
         )
 
         # noinspection PyTypeChecker
         self.register_buffer(
             "causal_mask",
-            torch.tril(torch.ones(max_caption_length, max_caption_length, device=device)) == 0,
+            torch.tril(torch.ones(max_caption_length, max_caption_length)) == 0,
             persistent=False,
         )
 
@@ -106,16 +102,15 @@ class DecoderOutput(nn.Module):
         self,
         embeddings: int,
         vocabulary_size: int,
-        device: str,
         add_bias: bool = False,
         counter: Optional[Counter] = None,
         encode_map: Optional[dict] = None,
         banned_tokens: Optional[list[str]] = None,
     ):
         super().__init__()
-        self.projection_to_vocabulary = nn.Linear(embeddings, vocabulary_size, device=device)
+        self.projection_to_vocabulary = nn.Linear(embeddings, vocabulary_size)
 
-        bias = torch.zeros(vocabulary_size, device=device)
+        bias = torch.zeros(vocabulary_size)
         if add_bias:
             assert not any(
                 [counter is None, encode_map is None, banned_tokens is None]
@@ -134,7 +129,7 @@ class DecoderOutput(nn.Module):
 
             bias = log_counts
             bias[counts_list == 0] = -1e9  # Masking banned or non-appearing tokens
-            bias = torch.tensor(bias, device=device)
+            bias = torch.tensor(bias)
 
         self.register_buffer("bias", bias, persistent=False)
 

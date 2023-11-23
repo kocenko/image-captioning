@@ -16,7 +16,6 @@ class MultiHeadAttention(nn.Module):
         input_shapes (tuple): tuple of three values, each representing input dimensions of query, key and value
         embeddings_number (int): embeddings dimension
         heads_number (int): number of heads to parallelize attention
-        device (str): name of the device on which the layers are performing calculations
         trainable_scale (bool): whether to make tau trainable
 
     Attributes:
@@ -47,7 +46,6 @@ class MultiHeadAttention(nn.Module):
         input_shapes: tuple[int, int, int],
         embeddings_number: int,
         heads_number: int,
-        device: str,
         trainable_scale: bool = False,
     ) -> None:
         super().__init__()
@@ -63,12 +61,12 @@ class MultiHeadAttention(nn.Module):
         if not trainable_scale:
             self.tau = math.sqrt(self.key_dim)
         else:
-            self.tau = nn.Parameter(torch.tensor(math.sqrt(self.key_dim), device=device))
+            self.tau = nn.Parameter(torch.tensor(math.sqrt(self.key_dim)))
 
-        self.query_projection = nn.Linear(input_shapes[0], embeddings_number, device=device)
-        self.key_projection = nn.Linear(input_shapes[1], embeddings_number, device=device)
-        self.value_projection = nn.Linear(input_shapes[2], embeddings_number, device=device)
-        self.output_projection = nn.Linear(embeddings_number, embeddings_number, device=device)
+        self.query_projection = nn.Linear(input_shapes[0], embeddings_number)
+        self.key_projection = nn.Linear(input_shapes[1], embeddings_number)
+        self.value_projection = nn.Linear(input_shapes[2], embeddings_number)
+        self.output_projection = nn.Linear(embeddings_number, embeddings_number)
         self.softmax = nn.Softmax(dim=-1)
         self.attention_weights = None
 

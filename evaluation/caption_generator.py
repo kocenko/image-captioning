@@ -25,11 +25,10 @@ class CaptionGenerator:
         bos (int): id of the beginning of sequence token
         eos (int): id of the end of sequence token
         vocab_size (int): number of tokens in vocabulary
-        device (str): string indicating which device will be used for calculations
     """
 
     def __init__(
-        self, model: CaptionTransformer, tokenizer: Tokenizer, transform: ImageTransforms, vocab_size: int, device: str
+        self, model: CaptionTransformer, tokenizer: Tokenizer, transform: ImageTransforms, vocab_size: int
     ) -> None:
         """Initializes caption generator
 
@@ -38,7 +37,6 @@ class CaptionGenerator:
             tokenizer (Tokenizer): custom tokenizer
             transform (ImageTransforms): transforms image
             vocab_size (int): number of tokens in vocabulary
-            device (str): string indicating which device will be used for calculations
         """
 
         self.model = model
@@ -47,7 +45,6 @@ class CaptionGenerator:
         self.vocab_size = vocab_size
         self.bos = self.tokenizer.encode_map[Tokenizer.start_token]
         self.eos = self.tokenizer.encode_map[Tokenizer.end_token]
-        self.device: str = device
 
     @staticmethod
     def topk_to_pairs(topk_output: torch.return_types.topk) -> list[CandidatePair]:
@@ -56,9 +53,9 @@ class CaptionGenerator:
         return [CandidatePair([ids], val) for ids, val in zip(indices, values)]
 
     def generate_beam_search(self, image_path: str, beam_width: int) -> list[int]:
-        image = self.transform.read_image(image_path).unsqueeze(0).to(self.device)
+        image = self.transform.read_image(image_path).unsqueeze(0)
         image = self.transform.transform(image)
-        caption_start = torch.tensor([self.bos], device=self.device).unsqueeze(0)
+        caption_start = torch.tensor([self.bos]).unsqueeze(0)
 
         self.model.eval()
 
@@ -72,7 +69,7 @@ class CaptionGenerator:
         while captions_to_generate > 0:
             all_probabilities = []
             for candidate in best:
-                caption = torch.tensor([self.bos] + candidate.indices, device=self.device).unsqueeze(0)
+                caption = torch.tensor([self.bos] + candidate.indices).unsqueeze(0)
                 logits = self.model(image, caption)[:, :, -1]
                 probabilities = F.softmax(logits, dim=-1) * candidate.probability
                 all_probabilities.extend(probabilities)
@@ -108,8 +105,8 @@ class CaptionGenerator:
             String with the generated caption
         """
         max_size = min(max_size, self.tokenizer.max_length)
-        generated_caption = torch.tensor([self.bos], device=self.device).unsqueeze(0)
-        image = self.transform.read_image(image_path).unsqueeze(0).to(self.device)
+        generated_caption = torch.tensor([self.bos]).unsqueeze(0)
+        image = self.transform.read_image(image_path).unsqueeze(0)
         image = self.transform.transform(image)
 
         self.model.eval()

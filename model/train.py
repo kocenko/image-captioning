@@ -32,7 +32,6 @@ class Trainer:
         sample_image_path (str): path to the file, which is used to generate captions
         writer (SummaryWriter): log writer object
         hyperparams (dict): dict of parameters used in the training
-        device (str): string indicating which device will be used for calculations
     """
 
     allowed_optimizations: list[str] = ["grid", "random"]
@@ -76,7 +75,6 @@ class Trainer:
         self.sample_image_path = sample_image_path
         self.writer = writer
         self.hyperparams = hyperparams
-        self.device = hyperparams["device"]
         self.criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.encode_map[Tokenizer.empty_token], reduction="none")
 
     def __training_in_progress_path(self) -> Optional[str]:

@@ -22,7 +22,6 @@ hyperparameters:
   heads_num: 12
   eval_iterations: 20
   steps_per_epoch: 100
-  device: "cpu"
 sample_image: "./evaluation/sample_images/surfing.jpg"
 checkpoints_folder: "./checkpoints"
 pretrained_weights_path: "../pretrained_weights/pytorch_model.bin"

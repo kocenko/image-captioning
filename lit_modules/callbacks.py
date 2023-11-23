@@ -8,19 +8,18 @@ from evaluation.caption_generator import CaptionGenerator
 
 
 class GenerateCaption(Callback):
-    def __init__(self, sample_image_path: str, tokenizer, image_transform, vocab_size, device):
+    def __init__(self, sample_image_path: str, tokenizer, image_transform, vocab_size):
         super().__init__()
         self.si = sample_image_path
         self.tk = tokenizer
         self.it = image_transform
         self.vs = vocab_size
-        self.dv = device
 
     def on_train_epoch_start(self, trainer, pl_module) -> None:
         tensorboard = pl_module.logger.experiment
 
         image = read_image(self.si).permute(1, 2, 0)
-        generator = CaptionGenerator(pl_module.model, self.tk, self.it, self.vs, self.dv)
+        generator = CaptionGenerator(pl_module.model, self.tk, self.it, self.vs)
         raw_caption = generator.generate_beam_search(self.si, 3)
         generated_caption = self.tk.decode(raw_caption)
 
@@ -28,8 +27,8 @@ class GenerateCaption(Callback):
         tensorboard.add_figure("captioned_image", captioned_fig)
 
         # Refitting the model
-        dummy_caption = torch.tensor(raw_caption, device=self.dv).unsqueeze(0)
-        dummy_image = self.it.transform(self.it.read_image(self.si).unsqueeze(0).to(self.dv))
+        dummy_caption = torch.tensor(raw_caption).unsqueeze(0)
+        dummy_image = self.it.transform(self.it.read_image(self.si).unsqueeze(0))
         pl_module.model(dummy_image, dummy_caption)
 
         encoder_heads = extract_encoder_heads(pl_module.model)

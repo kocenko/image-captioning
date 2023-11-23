@@ -1,4 +1,3 @@
-import torch
 import yaml
 
 from lightning import Trainer
@@ -22,10 +21,6 @@ def main():
     checkpoints_folder = config["checkpoints_folder"]
     pretrained_weights_path = config.get("pretrained_weights_path", False)
 
-    if torch.cuda.is_available():
-        hyperparameters["device"] = "cuda"
-        print("Will be using CUDA!!!")
-
     lit_data_module = DataModule(
         dataset_name,
         dataset_paths,
@@ -33,7 +28,6 @@ def main():
         hyperparameters["vocabulary_size"],
         hyperparameters["image_size"],
         hyperparameters["batches"],
-        hyperparameters["device"],
     )
 
     # Updating dependent hyperparameters
@@ -51,7 +45,6 @@ def main():
         lit_data_module.tokenizer,
         lit_data_module.transform,
         hyperparameters["vocabulary_size"],
-        device=hyperparameters["device"],
     )
 
     trainer = Trainer(

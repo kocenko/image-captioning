@@ -32,7 +32,6 @@ class PatchTokenizer(nn.Module):
         image_size (tuple[int, int]): height and width of an image in pixels
         patch_size (int): length of the patch side in pixels
         embeddings (int): dimension of a model
-        device (str): device on which calculations are performed
         shift (Optional[int]): number of pixels to perform diagonal shift across
 
     Attributes:
@@ -40,7 +39,7 @@ class PatchTokenizer(nn.Module):
         flatten (nn.Flatten): layer used to flatten the output
     """
 
-    def __init__(self, image_size: int, patch_size: int, embeddings: int, device: str, shift: Optional[int] = None):
+    def __init__(self, image_size: int, patch_size: int, embeddings: int, shift: Optional[int] = None):
         super().__init__()
         assert (
             image_size % patch_size == 0
@@ -53,9 +52,7 @@ class PatchTokenizer(nn.Module):
             shifted_patches.extend([ShiftImage(shift_pixels) for shift_pixels in shifts])
 
         self.patch_shifting_layers = nn.ModuleList(shifted_patches)
-        self.projection = nn.Conv2d(
-            3 * (5 if shift else 1), embeddings, kernel_size=patch_size, stride=patch_size, device=device
-        )
+        self.projection = nn.Conv2d(3 * (5 if shift else 1), embeddings, kernel_size=patch_size, stride=patch_size)
         self.flatten = nn.Flatten(start_dim=2)
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
