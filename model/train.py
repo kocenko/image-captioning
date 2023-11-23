@@ -177,7 +177,7 @@ class Trainer:
 
         exemplary_image, exemplary_caption = random.choice(self.raw_test_dataset)
         captioner = CaptionGenerator(self.model, self.tokenizer, self.transform, self.vocabulary_size, self.device)
-        generated_caption = captioner.generate_beam_search(exemplary_image, 3)
+        generated_caption, _, _ = captioner.generate_beam_search(exemplary_image, 3)
         generated_caption = self.tokenizer.decode(generated_caption)
         self.writer.add_text("caption", generated_caption, e)
 

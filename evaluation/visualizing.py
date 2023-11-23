@@ -1,3 +1,7 @@
+import warnings
+
+warnings.filterwarnings("ignore", module="matplotlib/")
+
 import os
 import math
 import matplotlib.pyplot as plt
@@ -157,6 +161,25 @@ def plot_filters(filters: np.ndarray, how_many: int, normalize: bool = True, see
         print(f"Could not visualize filters due to: {e}")
 
 
+def plot_captioned_image(image: torch.Tensor, generated_caption: str, show: bool = False):
+    fig, ax = plt.subplots(1)
+    plt.axis("off")
+    ax.imshow(image)
+    bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=1.0)
+    ax.text(
+        image.shape[1] // 2,
+        image.shape[0] + 0.02,
+        f"{generated_caption}",
+        ha="center",
+        va="center",
+        size=10,
+        bbox=bbox_props,
+    )
+    if show:
+        plt.show()
+    return fig
+
+
 def plot_self_attention(
     base_image: torch.Tensor,
     attention_weights: list[list[torch.Tensor]],
@@ -184,8 +207,9 @@ def plot_self_attention(
         (rec_x * patch_size, rec_y * patch_size), patch_size, patch_size, linewidth=1, edgecolor="r", facecolor="none"
     )
 
+    image = base_image.permute(1, 2, 0).detach().cpu().numpy()
     fig, axs = plt.subplots(rows_num, columns_num, figsize=(10, 10))
-    axs[0, 0].imshow(base_image.permute(1, 2, 0))
+    axs[0, 0].imshow(image)
     axs[0, 0].add_patch(rect)
 
     for layer_id, row_id in zip(layers_ids, range(rows_num)):
@@ -198,10 +222,11 @@ def plot_self_attention(
                 ax.set_title(f"Head {head_id}.")
             if column_id == 1:
                 ax.set_ylabel(f"Layer {layer_id}.")
-            ax.imshow(base_image.permute(1, 2, 0))
+            ax.imshow(image)
             attention = attention_weights[layer_id][head_id][attend_patch].reshape(patches_per_axis, patches_per_axis)
+            attention = attention.detach().cpu().numpy()
             attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
-            ax.imshow(attention, alpha=0.5, cmap='gray', interpolation='bilinear')
+            ax.imshow(attention, alpha=0.5, cmap="gray", interpolation="bilinear")
     if show:
         plt.show()
     return fig
@@ -218,14 +243,13 @@ def plot_cross_attention(
     show: bool = False,
 ):
     columns_number = max_columns
-
     if len(caption_tokens) < max_columns:
         print(f"Showing only {len(caption_tokens)} columns")
         columns_number = len(caption_tokens)
 
     rows_number = math.ceil(len(caption_tokens) / max_columns)
 
-    image = base_image.permute(1, 2, 0)
+    image = base_image.permute(1, 2, 0).detach().cpu().numpy()
     fig, axs = plt.subplots(rows_number, columns_number, figsize=(10, 10))
     for row_id in range(rows_number):
         for column_id in range(columns_number):
@@ -233,12 +257,13 @@ def plot_cross_attention(
             ax = axs[row_id, column_id] if rows_number > 1 else axs[column_id]
             ax.get_xaxis().set_ticks([])
             ax.get_yaxis().set_ticks([])
-            if token_i < attention_weights.shape[0]:
+            if token_i < len(caption_tokens):
                 ax.set_title(decode_map[caption_tokens[token_i]])
                 ax.imshow(image)
                 attention = attention_weights[token_i].reshape(patches_per_axis, patches_per_axis)
+                attention = attention.detach().cpu().numpy()
                 attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
-                ax.imshow(attention, alpha=0.5, cmap='gray', interpolation='bilinear')
+                ax.imshow(attention, alpha=0.5, cmap="gray", interpolation="bilinear")
             else:
                 ax.axis("off")
     if show:
