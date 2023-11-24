@@ -1,3 +1,4 @@
+from typing import Callable
 import os
 import math
 import matplotlib.pyplot as plt
@@ -5,6 +6,10 @@ import matplotlib.patches as patches
 import numpy as np
 import random
 import torch
+import networkx as nx
+
+from evaluation.caption_generator import CandidateNode
+from evaluation.unravel_graph import unravel_graph
 
 
 def plot_numpy_logs(name: str, folder: str = "../numpy_logs", batch_num: int = 0) -> None:
@@ -275,3 +280,13 @@ def plot_cross_attention(
         plt.show()
 
     return fig
+
+
+def visualize_candidates_graph(root_node: CandidateNode, decode_tokens: Callable):
+    unravel_graph(root_node, decode_tokens)
+    # G = nx.DiGraph()
+    # G.add_node(decode_tokens(root_node.tokens))
+    # G.add_nodes_from([decode_tokens(child.tokens) for child in root_node.children])
+    # G.add_edges_from([(decode_tokens(root_node.tokens), decode_tokens(child.tokens)) for child in root_node.children])
+    # nx.draw(G, with_labels=True, arrows=True)
+

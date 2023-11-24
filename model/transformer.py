@@ -56,9 +56,9 @@ class CaptionTransformer(nn.Module):
             image = torch.flatten(image, start_dim=2)
             image = image.permute(0, 2, 1)
 
-        x, key_padding_mask = self.decoder_input(caption)
+        x, padding_mask = self.decoder_input(caption)
         for block in self.decoder_blocks:
-            x = block(image, x, key_padding_mask)
+            x = block(image, x, padding_mask)
 
         predictions = self.output_layer(x).contiguous()
         return predictions

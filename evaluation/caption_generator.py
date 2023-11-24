@@ -1,8 +1,8 @@
+from typing import Optional
 from dataclasses import dataclass
 
 import torch
 import torch.nn.functional as F
-from torchvision.io import read_image
 
 from model.transformer import CaptionTransformer
 from data_processing.tokenizer import Tokenizer
@@ -10,9 +10,12 @@ from data_processing.image_transforms import ImageTransforms
 
 
 @dataclass
-class CandidatePair:
-    indices: list[int]
+class CandidateNode:
+    tokens: list[int]
     probability: float
+    parent: Optional[object]
+    children: Optional[list[object]]
+    best: bool
 
 
 class CaptionGenerator:
@@ -47,53 +50,52 @@ class CaptionGenerator:
         self.eos = self.tokenizer.encode_map[Tokenizer.end_token]
 
     @staticmethod
-    def topk_to_pairs(topk_output: torch.return_types.topk) -> list[CandidatePair]:
-        indices = topk_output.indices[0].tolist()
-        values = topk_output.values[0].tolist()
-        return [CandidatePair([ids], val) for ids, val in zip(indices, values)]
+    def find_top_best(probabilities: torch.Tensor, k: int, root_node: CandidateNode) -> list[CandidateNode]:
+        children = []
+        topk = torch.topk(probabilities, k)
+        for token_id, probability in zip(topk.indices.tolist(), topk.values.tolist()):
+            children.append(
+                CandidateNode(
+                    root_node.tokens + [token_id], root_node.probability * probability, root_node, None, False
+                )
+            )
+        root_node.children = children
+        return children
 
-    def generate_beam_search(self, image_path: str, beam_width: int) -> list[int]:
-        image = self.transform.read_image(image_path).unsqueeze(0)
-        image = self.transform.transform(image)
+    @torch.no_grad()
+    def generate_beam_search(self, image_path: str, beam_width: int) -> tuple[list[int], CandidateNode]:
+        image = self.transform.transform(self.transform.read_image(image_path).unsqueeze(0))
         caption_start = torch.tensor([self.bos]).unsqueeze(0)
 
-        self.model.eval()
-
         # Initial prediction
+        root_node = CandidateNode([self.bos], 1.0, None, None, True)
         logits = self.model(image, caption_start)[:, :, -1]
-        predictions = F.softmax(logits, dim=-1)
-        best = self.topk_to_pairs(torch.topk(predictions, beam_width, dim=-1))
+        predictions = F.softmax(logits, dim=-1).squeeze()
+        best_nodes = self.find_top_best(predictions, beam_width, root_node)
 
         ready_captions = []
-        captions_to_generate = beam_width
-        while captions_to_generate > 0:
-            all_probabilities = []
-            for candidate in best:
-                caption = torch.tensor([self.bos] + candidate.indices).unsqueeze(0)
-                logits = self.model(image, caption)[:, :, -1]
-                probabilities = F.softmax(logits, dim=-1) * candidate.probability
-                all_probabilities.extend(probabilities)
-            probabilities = torch.cat(all_probabilities, dim=-1).unsqueeze(0)
-            new_best = self.topk_to_pairs(torch.topk(probabilities, captions_to_generate, dim=-1))
-
-            to_remove = []
-            for i, candidate in enumerate(new_best):
-                parent_id = candidate.indices[0] // self.vocab_size
-                child_id = candidate.indices[0] % self.vocab_size
-                candidate.indices = best[parent_id].indices + [child_id]
-                if child_id == self.eos or len(candidate.indices) == self.tokenizer.max_length - 1:
+        while beam_width > 0:
+            all_best = []
+            for candidate in best_nodes:
+                candidate.best = True
+                if candidate.tokens[-1] == self.eos or len(candidate.tokens) == self.tokenizer.max_length - 1:
                     ready_captions.append(candidate)
-                    to_remove.append(i)
-                    captions_to_generate -= 1
+                    beam_width -= 1
+                    continue
+                caption = torch.tensor(candidate.tokens).unsqueeze(0)
+                logits = self.model(image, caption)[:, :, -1]
+                probabilities = F.softmax(logits, dim=-1).squeeze()
+                all_best.extend(self.find_top_best(probabilities, beam_width, candidate))
 
-            best = [c for i, c in enumerate(new_best) if i not in to_remove]
+            if beam_width > 0:
+                best_nodes = sorted(all_best, key=lambda x: x.probability, reverse=True)[:beam_width]
 
-        best_caption = max(ready_captions, key=lambda x: x.probability)
-        out_caption = [self.bos] + best_caption.indices
-        self.model.train()
-        return out_caption
+        best_candidate = max(ready_captions, key=lambda x: x.probability)
+        tokens_to_return = best_candidate.tokens
+        return tokens_to_return, root_node
 
-    def generate(self, image_path: str, max_size: int, temperature: float = 0.5) -> list[int]:
+    @torch.no_grad()
+    def generate(self, image_path: str, temperature: float = 0.5) -> list[int]:
         """Method used to generate a caption
 
         Args:
@@ -104,13 +106,12 @@ class CaptionGenerator:
         Returns:
             String with the generated caption
         """
-        max_size = min(max_size, self.tokenizer.max_length)
+
         generated_caption = torch.tensor([self.bos]).unsqueeze(0)
         image = self.transform.read_image(image_path).unsqueeze(0)
         image = self.transform.transform(image)
 
-        self.model.eval()
-        for _ in range(max_size):
+        for _ in range(self.tokenizer.max_length-1):
             logits = self.model(image, generated_caption)
             logits = logits[:, :, -1]  # Fetching the last token of the generated sequence
             predictions = F.softmax(logits, dim=-1)
@@ -123,7 +124,6 @@ class CaptionGenerator:
             if new_token[0].tolist() == [self.eos]:
                 break
 
-        self.model.train()
         caption_list = generated_caption[0].tolist()
         return caption_list
 

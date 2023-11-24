@@ -42,7 +42,7 @@ def main():
         dataset_name,
         dataset_paths,
         image_transform,
-        hyperparameters["max_caption_length"] + 1,  # ?????
+        hyperparameters["max_caption_length"],
         hyperparameters["vocabulary_size"],
         hyperparameters["batches"],
     )

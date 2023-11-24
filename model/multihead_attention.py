@@ -46,6 +46,7 @@ class MultiHeadAttention(nn.Module):
         input_shapes: tuple[int, int, int],
         embeddings_number: int,
         heads_number: int,
+        dropout_rate: float,
         trainable_scale: bool = False,
     ) -> None:
         super().__init__()
@@ -67,6 +68,7 @@ class MultiHeadAttention(nn.Module):
         self.key_projection = nn.Linear(input_shapes[1], embeddings_number)
         self.value_projection = nn.Linear(input_shapes[2], embeddings_number)
         self.output_projection = nn.Linear(embeddings_number, embeddings_number)
+        self.dropout = nn.Dropout(dropout_rate)
         self.softmax = nn.Softmax(dim=-1)
         self.attention_weights = None
 
@@ -112,6 +114,8 @@ class MultiHeadAttention(nn.Module):
 
         affinity = self.softmax(affinity)
         self.attention_weights = affinity
+
+        affinity = self.dropout(affinity)
 
         # Output score
         attention = affinity @ value  # [B, num_heads, T_v, val_dim]

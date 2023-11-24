@@ -21,7 +21,8 @@ class DecoderInput(nn.Module):
         super().__init__()
         assert embeddings % 2 == 0, f"Embeddings dimension should be divisible by 2 to perform fast positional encoding"
 
-        self.token_embedding = nn.Embedding(vocabulary_size, embeddings, padding_idx=padding_idx)
+        self.padding_index = padding_idx
+        self.token_embedding = nn.Embedding(vocabulary_size, embeddings)
 
         # Calculating positional encoding based on the "Attention is All You Need"
         # Based on: https://medium.com/@hunter-j-phillips/positional-encoding-7a93db4109e6
@@ -35,10 +36,11 @@ class DecoderInput(nn.Module):
         self.register_buffer("positional_encoding", positional_encoding, persistent=False)
 
     def forward(self, caption: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        key_padding_mask = caption == 0
+        padding_mask = torch.tensor(caption == self.padding_index)
         token_embedding = self.token_embedding(caption)
+        token_embedding = torch.masked_fill(token_embedding, padding_mask[:, :, None], 0)
         token_embedding = token_embedding + self.positional_encoding[:, : token_embedding.shape[1], :]
-        return token_embedding, key_padding_mask
+        return token_embedding, padding_mask
 
 
 class DecoderBlock(nn.Module):
@@ -56,6 +58,7 @@ class DecoderBlock(nn.Module):
             input_shapes=(embeddings, embeddings, embeddings),
             embeddings_number=embeddings,
             heads_number=heads_num,
+            dropout_rate=dropout_rate,
         )
         self.self_attention_post_normalization = nn.LayerNorm(embeddings)
 
@@ -64,13 +67,14 @@ class DecoderBlock(nn.Module):
             input_shapes=(embeddings, cross_attention_key_dim, cross_attention_key_dim),
             embeddings_number=embeddings,
             heads_number=heads_num,
+            dropout_rate=dropout_rate,
         )
         self.cross_attention_post_normalization = nn.LayerNorm(embeddings)
 
         self.feed_forward = nn.Sequential(
-            nn.Linear(embeddings, 4 * embeddings),
+            nn.Linear(embeddings, 2 * embeddings),
             nn.GELU(),
-            nn.Linear(4 * embeddings, embeddings),
+            nn.Linear(2 * embeddings, embeddings),
             nn.Dropout(dropout_rate),
         )
 
@@ -82,13 +86,13 @@ class DecoderBlock(nn.Module):
         )
 
     def forward(self, image, caption, key_padding_mask):
-        caption_norm = self.self_attention_pre_normalization(caption)
-        sa = self.self_attention(caption_norm, caption_norm, caption_norm, self.causal_mask, key_padding_mask)
+        # caption_norm = self.self_attention_pre_normalization(caption)
+        sa = self.self_attention(caption, caption, caption, self.causal_mask, key_padding_mask)
         x = caption + sa
         x_post_norm = self.self_attention_post_normalization(x)
 
-        image_norm = self.cross_attention_pre_normalization(image)
-        cr = self.cross_attention(x_post_norm, image_norm, image_norm)
+        # image_norm = self.cross_attention_pre_normalization(image)
+        cr = self.cross_attention(x_post_norm, image, image)
         x = x + cr
         x_post_norm = self.cross_attention_post_normalization(x)
 

@@ -43,17 +43,20 @@ class ModelModule(LightningModule):
     def training_step(self, batch, batch_idx):
         image, caption_sample, caption_target = batch
         logits = self(image, caption_sample)
+
         loss = self.loss_function(logits, caption_target)
+        self.log("train_loss", loss)
+
         acc = self.masked_accuracy(logits, caption_target)
         self.log("train_accuracy", acc)
-        self.log("train_loss", loss)
+
         return loss
 
     def validation_step(self, batch, batch_idx):
         image, caption_sample, caption_target = batch
         logits = self(image, caption_sample)
         loss = self.loss_function(logits, caption_target)
-        acc = self.masked_accuracy(logits, caption_target)
-        self.log("val_accuracy", acc)
+        # acc = self.masked_accuracy(logits, caption_target)
+        # self.log("val_accuracy", acc)
         self.log("val_loss", loss)
         return loss
