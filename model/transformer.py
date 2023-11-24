@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 
@@ -6,44 +8,57 @@ from model.encoder import EncoderBlock
 from model.decoder import DecoderInput
 from model.decoder import DecoderBlock
 from model.decoder import DecoderOutput
+from data_processing.feature_extractor import FeatureExtractor
 
 
 class CaptionTransformer(nn.Module):
-    def __init__(self, **config):
+    def __init__(self, feature_extractor: Optional[FeatureExtractor] = None, **config):
         super().__init__()
         embeddings = config["embeddings"]
         dropout_rate = config["dropout_rate"]
         heads_num = config["heads_num"]
-        patch_size = config["patch_size"]
         image_size = config["image_size"]
         max_caption_length = config["max_caption_length"]
         vocabulary_size = config["vocabulary_size"]
         counter = config["counter"]
         encode_map = config["encode_map"]
         banned_tokens = config["banned_tokens"]
-        shift_pixels = config["shift_pixels"]
-        encoder_layers = config["encoder_layers"]
         decoder_layers = config["decoder_layers"]
-        patches_num = (image_size // patch_size) ** 2
+        cross_attention_key_dim = config["cross_att_key_dim"]
 
-        self.encoder_input = EncoderInput(image_size, shift_pixels, patch_size, embeddings)
-        self.encoder_blocks = nn.Sequential(
-            *[EncoderBlock(embeddings, dropout_rate, heads_num, patches_num) for _ in range(encoder_layers)]
-        )
+        self.feature_extractor = feature_extractor
+
+        if not self.feature_extractor:
+            patch_size = config["patch_size"]
+            shift_pixels = config["shift_pixels"]
+            encoder_layers = config["encoder_layers"]
+            patches_num = (image_size // patch_size) ** 2
+            self.encoder_input = EncoderInput(image_size, shift_pixels, patch_size, embeddings)
+            self.encoder_blocks = nn.Sequential(
+                *[EncoderBlock(embeddings, dropout_rate, heads_num, patches_num) for _ in range(encoder_layers)]
+            )
 
         self.decoder_input = DecoderInput(vocabulary_size, max_caption_length, embeddings)
         self.decoder_blocks = nn.ModuleList(
-            [DecoderBlock(embeddings, dropout_rate, heads_num, max_caption_length) for _ in range(decoder_layers)]
+            [
+                DecoderBlock(embeddings, cross_attention_key_dim, dropout_rate, heads_num, max_caption_length)
+                for _ in range(decoder_layers)
+            ]
         )
         self.output_layer = DecoderOutput(embeddings, vocabulary_size, True, counter, encode_map, banned_tokens)
 
     def forward(self, image: torch.Tensor, caption: torch.Tensor):
-        image_embeddings = self.encoder_input(image)
-        images_attention = self.encoder_blocks(image_embeddings)
-        x, key_padding_mask = self.decoder_input(caption)
+        if not self.feature_extractor:
+            image = self.encoder_input(image)
+            image = self.encoder_blocks(image)
+        else:
+            image = self.feature_extractor.feed(image)
+            image = torch.flatten(image, start_dim=2)
+            image = image.permute(0, 2, 1)
 
+        x, key_padding_mask = self.decoder_input(caption)
         for block in self.decoder_blocks:
-            x = block(images_attention, x, key_padding_mask)
+            x = block(image, x, key_padding_mask)
 
         predictions = self.output_layer(x).contiguous()
         return predictions

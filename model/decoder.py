@@ -45,6 +45,7 @@ class DecoderBlock(nn.Module):
     def __init__(
         self,
         embeddings: int,
+        cross_attention_key_dim: int,
         dropout_rate: float,
         heads_num: int,
         max_caption_length: int,
@@ -58,9 +59,9 @@ class DecoderBlock(nn.Module):
         )
         self.self_attention_post_normalization = nn.LayerNorm(embeddings)
 
-        self.cross_attention_pre_normalization = nn.LayerNorm(embeddings)
+        self.cross_attention_pre_normalization = nn.LayerNorm(cross_attention_key_dim)
         self.cross_attention = MultiHeadAttention(
-            input_shapes=(embeddings, embeddings, embeddings),
+            input_shapes=(embeddings, cross_attention_key_dim, cross_attention_key_dim),
             embeddings_number=embeddings,
             heads_number=heads_num,
         )

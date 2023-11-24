@@ -7,9 +7,12 @@ from lit_modules.lit_data import DataModule
 from lit_modules.lit_model import ModelModule
 from lit_modules.callbacks import GenerateCaption
 from model.transformer import CaptionTransformer
+from data_processing.image_transforms import ImageTransforms
+from data_processing.feature_extractor import FeatureExtractor
 
 
 def main():
+    # Reading configuration data from yaml file
     config_file = "configs/patching_small_flickr8k_surfing_homepc.yaml"
     with open(config_file, "r") as file:
         config = yaml.safe_load(file)
@@ -20,13 +23,27 @@ def main():
     sample_image = config["sample_image"]
     checkpoints_folder = config["checkpoints_folder"]
     pretrained_weights_path = config.get("pretrained_weights_path", False)
+    feature_extractor = config.get("feature_extractor", False)
+    slice_layer_name = config.get("layer_name", None)
+    hyperparameters["cross_att_key_dim"] = config.get("feature_maps_dim", hyperparameters["embeddings"])
+    image_embedding_size = config.get("feature_maps_size", 14)  # For image_size: 224, patch_size: 16
 
+    # Setting up image transformations
+    extractor = None
+    if feature_extractor:
+        image_transform = ImageTransforms(hyperparameters["image_size"], feature_extractor)
+        extractor = FeatureExtractor(feature_extractor, image_transform)
+        extractor.slice_net(slice_layer_name, overwrite_model=True)
+    else:
+        image_transform = ImageTransforms(hyperparameters["image_size"])
+
+    # Setting up DataModule responsible for managing input data
     lit_data_module = DataModule(
         dataset_name,
         dataset_paths,
-        hyperparameters["max_caption_length"] + 1,
+        image_transform,
+        hyperparameters["max_caption_length"] + 1,  # ?????
         hyperparameters["vocabulary_size"],
-        hyperparameters["image_size"],
         hyperparameters["batches"],
     )
 
@@ -34,8 +51,8 @@ def main():
     hyperparameters["counter"] = lit_data_module.tokenizer.counter
     hyperparameters["encode_map"] = lit_data_module.tokenizer.encode_map
 
-    ct = CaptionTransformer(**hyperparameters)
-    if pretrained_weights_path:
+    ct = CaptionTransformer(**hyperparameters) if not extractor else CaptionTransformer(extractor, **hyperparameters)
+    if pretrained_weights_path and not extractor:
         ct.load_weights(pretrained_weights_path)
 
     lit_model = ModelModule(ct, hyperparameters["encode_map"], hyperparameters["learning_rate"])
@@ -45,6 +62,8 @@ def main():
         lit_data_module.tokenizer,
         lit_data_module.transform,
         hyperparameters["vocabulary_size"],
+        image_embedding_size,
+        not feature_extractor,
     )
 
     trainer = Trainer(

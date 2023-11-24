@@ -1,44 +1,57 @@
 import torch
-from torchvision.io import read_image
 from lightning.pytorch.callbacks import Callback
 
+import data_processing.image_transforms
 from evaluation.extract_heads import aggregate_heads, extract_decoder_heads, extract_encoder_heads
 from evaluation.visualizing import plot_self_attention, plot_cross_attention, plot_captioned_image
 from evaluation.caption_generator import CaptionGenerator
+from data_processing.tokenizer import Tokenizer
+from data_processing.image_transforms import ImageTransforms
 
 
 class GenerateCaption(Callback):
-    def __init__(self, sample_image_path: str, tokenizer, image_transform, vocab_size):
+    def __init__(
+        self,
+        image_path: str,
+        tokenizer: Tokenizer,
+        image_transform: ImageTransforms,
+        vocab_size: int,
+        image_embedding_size: int,
+        show_self_attention: bool,
+    ):
         super().__init__()
-        self.si = sample_image_path
-        self.tk = tokenizer
-        self.it = image_transform
-        self.vs = vocab_size
+        self.image_path = image_path
+        self.tokenizer = tokenizer
+        self.image_transform = image_transform
+        self.vocabulary_size = vocab_size
+        self.image_embedding_size = image_embedding_size
+        self.show_self_attention = show_self_attention
 
     def on_train_epoch_start(self, trainer, pl_module) -> None:
         tensorboard = pl_module.logger.experiment
 
-        image = read_image(self.si).permute(1, 2, 0)
-        generator = CaptionGenerator(pl_module.model, self.tk, self.it, self.vs)
-        raw_caption = generator.generate_beam_search(self.si, 3)
-        generated_caption = self.tk.decode(raw_caption)
+        image = self.image_transform.read_image(self.image_path).permute(1, 2, 0)
+        generator = CaptionGenerator(pl_module.model, self.tokenizer, self.image_transform, self.vocabulary_size)
+        raw_caption = generator.generate_beam_search(self.image_path, 3)
+        generated_caption = self.tokenizer.decode(raw_caption)
 
         captioned_fig = plot_captioned_image(image, generated_caption)
         tensorboard.add_figure("captioned_image", captioned_fig)
 
         # Refitting the model
         dummy_caption = torch.tensor(raw_caption).unsqueeze(0)
-        dummy_image = self.it.transform(self.it.read_image(self.si).unsqueeze(0))
+        dummy_image = self.image_transform.transform(self.image_transform.read_image(self.image_path).unsqueeze(0))
         pl_module.model(dummy_image, dummy_caption)
 
-        encoder_heads = extract_encoder_heads(pl_module.model)
-        transformed_image = self.it.transform(image.permute(2, 0, 1))
-        self_att_fig = plot_self_attention(transformed_image, encoder_heads, 3, 4, 14, 16, True)
-        tensorboard.add_figure("self_attention", self_att_fig)
+        dummy_image = self.image_transform.denormalize(dummy_image.squeeze(0))
+        if self.show_self_attention:
+            encoder_heads = extract_encoder_heads(pl_module.model)
+            self_att_fig = plot_self_attention(dummy_image, encoder_heads, 3, 4, self.image_embedding_size, True)
+            tensorboard.add_figure("self_attention", self_att_fig)
 
         decoder_heads = extract_decoder_heads(pl_module.model)
         aggregated_heads = aggregate_heads(decoder_heads, method="mean")
         cross_att_fig = plot_cross_attention(
-            transformed_image, raw_caption, aggregated_heads, 8, 16, 14, self.tk.decode_map, True
+            dummy_image, raw_caption, aggregated_heads, 8, self.image_embedding_size, self.tokenizer.decode_map, True
         )
         tensorboard.add_figure("cross_attention", cross_att_fig)

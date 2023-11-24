@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
@@ -19,9 +19,9 @@ class DataModule(LightningDataModule):
         self,
         dataset_name: str,
         dataset_paths: dict,
+        image_transform: Any,
         max_sequence_size: int,
         vocabulary_size: int,
-        image_size: int,
         batch_size: int,
     ):
         super().__init__()
@@ -29,7 +29,7 @@ class DataModule(LightningDataModule):
         assert dataset_name in ["flickr8k", "flickr30k"], f"Dataset of given name {dataset_name} was not implemented"
         self.raw_datasets = DataModule.DATA_READER_MAP[dataset_name](**dataset_paths)
         self.tokenizer = Tokenizer([caption for _, caption in self.raw_datasets[0]], max_sequence_size, vocabulary_size)
-        self.transform = ImageTransforms(image_size)
+        self.transform = image_transform
         self.batch_size = batch_size
 
         self.train: Optional[ImageCaptionDataset] = None
