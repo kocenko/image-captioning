@@ -50,7 +50,7 @@ class GenerateCaption(Callback):
             tensorboard.add_figure("self_attention", self_att_fig)
 
         decoder_heads = extract_decoder_heads(pl_module.model)
-        aggregated_heads = aggregate_heads(decoder_heads, method="mean")
+        aggregated_heads = aggregate_heads(decoder_heads, method="sum")
         cross_att_fig = plot_cross_attention(
             dummy_image, raw_caption, aggregated_heads, 8, self.image_embedding_size, self.tokenizer.decode_map, True
         )

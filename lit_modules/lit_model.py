@@ -30,10 +30,22 @@ class ModelModule(LightningModule):
         loss = torch.sum(loss) / torch.sum(mask)
         return loss
 
+    def masked_accuracy(self, logits: torch.Tensor, target: torch.Tensor):
+        padding_token = self.encode_map[Tokenizer.empty_token]
+        logits = logits.transpose(-2, -1)
+        mask = target != padding_token
+        predictions = torch.argmax(logits, dim=-1)
+        match = predictions == target
+        acc = match * mask
+        acc = torch.sum(acc) / torch.sum(mask)
+        return acc
+
     def training_step(self, batch, batch_idx):
         image, caption_sample, caption_target = batch
         logits = self(image, caption_sample)
         loss = self.loss_function(logits, caption_target)
+        acc = self.masked_accuracy(logits, caption_target)
+        self.log("train_accuracy", acc)
         self.log("train_loss", loss)
         return loss
 
@@ -41,5 +53,7 @@ class ModelModule(LightningModule):
         image, caption_sample, caption_target = batch
         logits = self(image, caption_sample)
         loss = self.loss_function(logits, caption_target)
+        acc = self.masked_accuracy(logits, caption_target)
+        self.log("val_accuracy", acc)
         self.log("val_loss", loss)
         return loss
