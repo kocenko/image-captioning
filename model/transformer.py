@@ -47,7 +47,15 @@ class CaptionTransformer(nn.Module):
         )
         self.output_layer = DecoderOutput(embeddings, vocabulary_size, True, counter, encode_map, banned_tokens)
 
+    @staticmethod
+    def get_padding_mask(caption_batch: torch.Tensor, padding_idx: int = 0) -> torch.Tensor:
+        # noinspection PyTypeChecker
+        return caption_batch == padding_idx
+
     def forward(self, image: torch.Tensor, caption: torch.Tensor):
+        padding_mask = self.get_padding_mask(caption)
+        x = self.decoder_input(caption, padding_mask)
+
         if not self.feature_extractor:
             image = self.encoder_input(image)
             image = self.encoder_blocks(image)
@@ -56,7 +64,6 @@ class CaptionTransformer(nn.Module):
             image = torch.flatten(image, start_dim=2)
             image = image.permute(0, 2, 1)
 
-        x, padding_mask = self.decoder_input(caption)
         for block in self.decoder_blocks:
             x = block(image, x, padding_mask)
 

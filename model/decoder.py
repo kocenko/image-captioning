@@ -15,7 +15,6 @@ class DecoderInput(nn.Module):
         vocabulary_size: int,
         max_caption_length: int,
         embeddings: int,
-        padding_idx: int = 0,
         pos_n: int = 1000,
         learnable_pos: bool = True
     ):
@@ -23,7 +22,6 @@ class DecoderInput(nn.Module):
         assert embeddings % 2 == 0, f"Embeddings dimension should be divisible by 2 to perform fast positional encoding"
 
         self.learnable_pos = learnable_pos
-        self.padding_index = padding_idx
         self.token_embedding = nn.Embedding(vocabulary_size, embeddings)
 
         if self.learnable_pos:
@@ -39,18 +37,17 @@ class DecoderInput(nn.Module):
             positional_encoding = positional_encoding.unsqueeze(0)
             self.register_buffer("positional_encoding", positional_encoding, persistent=False)
 
-    def forward(self, caption: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        padding_mask = (caption == self.padding_index)
+    def forward(self, caption: torch.Tensor, padding_mask: torch.Tensor) -> torch.Tensor:
         token_embedding = self.token_embedding(caption)
         token_embedding = torch.masked_fill(token_embedding, padding_mask[:, :, None], 0)
 
         if self.learnable_pos:
-            positional_embeddings = self.positional_encoding(torch.arange(token_embedding.shape[1]))
+            positional_embeddings = self.positional_encoding(torch.arange(token_embedding.shape[1]).unsqueeze(0))
             token_embedding = token_embedding + positional_embeddings
         else:
             token_embedding = token_embedding + self.positional_encoding[:, : token_embedding.shape[1], :]
 
-        return token_embedding, padding_mask
+        return token_embedding
 
 
 class DecoderBlock(nn.Module):
