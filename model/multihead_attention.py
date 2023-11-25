@@ -104,7 +104,7 @@ class MultiHeadAttention(nn.Module):
 
         # Masking sequence items that should not be attended to or are padding
         if attention_mask is not None:
-            attention_mask = attention_mask[None, None, : query.shape[2], : key.shape[2]]
+            attention_mask = attention_mask[None, None, :, :]
             affinity = affinity.masked_fill(attention_mask, float("-inf"))
 
         # Masking paddings from sequence

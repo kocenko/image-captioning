@@ -78,6 +78,7 @@ class FeatureExtractor:
 
         return feature_extractor
 
+    @torch.no_grad()
     def feed(self, batch: Any) -> torch.Tensor:
         """Used to get the outcome of feeding the pretrained model
 

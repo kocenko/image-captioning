@@ -6,7 +6,7 @@ import torch
 from torch import nn
 import numpy as np
 
-from model.multihead_attention import MultiHeadAttention
+from model.attention_sublayers import SelfAttention, CrossAttention, FeedForward
 
 
 class DecoderInput(nn.Module):
@@ -17,29 +17,39 @@ class DecoderInput(nn.Module):
         embeddings: int,
         padding_idx: int = 0,
         pos_n: int = 1000,
+        learnable_pos: bool = True
     ):
         super().__init__()
         assert embeddings % 2 == 0, f"Embeddings dimension should be divisible by 2 to perform fast positional encoding"
 
+        self.learnable_pos = learnable_pos
         self.padding_index = padding_idx
         self.token_embedding = nn.Embedding(vocabulary_size, embeddings)
 
-        # Calculating positional encoding based on the "Attention is All You Need"
-        # Based on: https://medium.com/@hunter-j-phillips/positional-encoding-7a93db4109e6
-        sequence_indices = torch.arange(max_caption_length).unsqueeze(1)
-        divisor_term = torch.exp(torch.arange(0, embeddings, 2).float() * (-math.log(pos_n) / embeddings))
-        positional_encoding = torch.zeros(max_caption_length, embeddings)
-        positional_encoding[:, 0::2] = torch.sin(sequence_indices * divisor_term)
-        positional_encoding[:, 1::2] = torch.cos(sequence_indices * divisor_term)
-        positional_encoding = positional_encoding.unsqueeze(0)
-
-        self.register_buffer("positional_encoding", positional_encoding, persistent=False)
+        if self.learnable_pos:
+            self.positional_encoding = nn.Embedding(max_caption_length, embeddings)
+        else:
+            # Calculating positional encoding based on the "Attention is All You Need"
+            # Based on: https://medium.com/@hunter-j-phillips/positional-encoding-7a93db4109e6
+            sequence_indices = torch.arange(max_caption_length).unsqueeze(1)
+            divisor_term = torch.exp(torch.arange(0, embeddings, 2).float() * (-math.log(pos_n) / embeddings))
+            positional_encoding = torch.zeros(max_caption_length, embeddings)
+            positional_encoding[:, 0::2] = torch.sin(sequence_indices * divisor_term)
+            positional_encoding[:, 1::2] = torch.cos(sequence_indices * divisor_term)
+            positional_encoding = positional_encoding.unsqueeze(0)
+            self.register_buffer("positional_encoding", positional_encoding, persistent=False)
 
     def forward(self, caption: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        padding_mask = torch.tensor(caption == self.padding_index)
+        padding_mask = (caption == self.padding_index)
         token_embedding = self.token_embedding(caption)
         token_embedding = torch.masked_fill(token_embedding, padding_mask[:, :, None], 0)
-        token_embedding = token_embedding + self.positional_encoding[:, : token_embedding.shape[1], :]
+
+        if self.learnable_pos:
+            positional_embeddings = self.positional_encoding(torch.arange(token_embedding.shape[1]))
+            token_embedding = token_embedding + positional_embeddings
+        else:
+            token_embedding = token_embedding + self.positional_encoding[:, : token_embedding.shape[1], :]
+
         return token_embedding, padding_mask
 
 
@@ -53,30 +63,9 @@ class DecoderBlock(nn.Module):
         max_caption_length: int,
     ):
         super().__init__()
-        self.self_attention_pre_normalization = nn.LayerNorm(embeddings)
-        self.self_attention = MultiHeadAttention(
-            input_shapes=(embeddings, embeddings, embeddings),
-            embeddings_number=embeddings,
-            heads_number=heads_num,
-            dropout_rate=dropout_rate,
-        )
-        self.self_attention_post_normalization = nn.LayerNorm(embeddings)
-
-        self.cross_attention_pre_normalization = nn.LayerNorm(cross_attention_key_dim)
-        self.cross_attention = MultiHeadAttention(
-            input_shapes=(embeddings, cross_attention_key_dim, cross_attention_key_dim),
-            embeddings_number=embeddings,
-            heads_number=heads_num,
-            dropout_rate=dropout_rate,
-        )
-        self.cross_attention_post_normalization = nn.LayerNorm(embeddings)
-
-        self.feed_forward = nn.Sequential(
-            nn.Linear(embeddings, 2 * embeddings),
-            nn.GELU(),
-            nn.Linear(2 * embeddings, embeddings),
-            nn.Dropout(dropout_rate),
-        )
+        self.self_attention = SelfAttention(embeddings, heads_num, dropout_rate)
+        self.cross_attention = CrossAttention(embeddings, cross_attention_key_dim, heads_num, dropout_rate)
+        self.feed_forward = FeedForward(embeddings, dropout_rate)
 
         # noinspection PyTypeChecker
         self.register_buffer(
@@ -86,20 +75,10 @@ class DecoderBlock(nn.Module):
         )
 
     def forward(self, image, caption, key_padding_mask):
-        # caption_norm = self.self_attention_pre_normalization(caption)
-        sa = self.self_attention(caption, caption, caption, self.causal_mask, key_padding_mask)
-        x = caption + sa
-        x_post_norm = self.self_attention_post_normalization(x)
-
-        # image_norm = self.cross_attention_pre_normalization(image)
-        cr = self.cross_attention(x_post_norm, image, image)
-        x = x + cr
-        x_post_norm = self.cross_attention_post_normalization(x)
-
-        ff = self.feed_forward(x_post_norm)
-        x = x + ff
-
-        return x
+        caption = self.self_attention(caption, self.causal_mask[:caption.shape[1], :caption.shape[1]], key_padding_mask)
+        caption = self.cross_attention(caption, image, None, None)
+        caption = self.feed_forward(caption)
+        return caption
 
 
 class DecoderOutput(nn.Module):

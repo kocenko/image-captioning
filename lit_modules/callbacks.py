@@ -39,7 +39,7 @@ class GenerateCaption(Callback):
         generated_caption = self.tokenizer.decode(raw_caption)
         print(generated_caption)
         captioned_fig = plot_captioned_image(image, generated_caption)
-        tensorboard.add_figure("captioned_image", captioned_fig)
+        tensorboard.add_figure("captioned_image", captioned_fig, trainer.current_epoch)
 
         # Refitting the model
         dummy_caption = torch.tensor(raw_caption).unsqueeze(0)
@@ -52,9 +52,9 @@ class GenerateCaption(Callback):
             self_att_fig = plot_self_attention(dummy_image, encoder_heads, 3, 4, self.image_embedding_size)
             tensorboard.add_figure("self_attention", self_att_fig)
 
-        decoder_heads = extract_decoder_heads(pl_module.model)
-        aggregated_heads = aggregate_heads(decoder_heads, method="sum")
-        cross_att_fig = plot_cross_attention(
-            dummy_image, raw_caption, aggregated_heads, 8, self.image_embedding_size, self.tokenizer.decode_map
-        )
-        tensorboard.add_figure("cross_attention", cross_att_fig)
+        # decoder_heads = extract_decoder_heads(pl_module.model)
+        # aggregated_heads = aggregate_heads(decoder_heads, method="sum")
+        # cross_att_fig = plot_cross_attention(
+        #     dummy_image, raw_caption, aggregated_heads, 8, self.image_embedding_size, self.tokenizer.decode_map
+        # )
+        # tensorboard.add_figure("cross_attention", cross_att_fig)

@@ -55,8 +55,11 @@ class ModelModule(LightningModule):
     def validation_step(self, batch, batch_idx):
         image, caption_sample, caption_target = batch
         logits = self(image, caption_sample)
+
         loss = self.loss_function(logits, caption_target)
-        # acc = self.masked_accuracy(logits, caption_target)
-        # self.log("val_accuracy", acc)
         self.log("val_loss", loss)
+
+        acc = self.masked_accuracy(logits, caption_target)
+        self.log("val_accuracy", acc)
+
         return loss
