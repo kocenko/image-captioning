@@ -16,7 +16,7 @@ class DecoderInput(nn.Module):
         max_caption_length: int,
         embeddings: int,
         pos_n: int = 1000,
-        learnable_pos: bool = True
+        learnable_pos: bool = True,
     ):
         super().__init__()
         assert embeddings % 2 == 0, f"Embeddings dimension should be divisible by 2 to perform fast positional encoding"
@@ -72,8 +72,10 @@ class DecoderBlock(nn.Module):
         )
 
     def forward(self, image, caption, key_padding_mask):
-        caption = self.self_attention(caption, self.causal_mask[:caption.shape[1], :caption.shape[1]], key_padding_mask)
-        caption = self.cross_attention(caption, image, None, None)
+        caption = self.self_attention(
+            caption, self.causal_mask[: caption.shape[1], : caption.shape[1]], key_padding_mask
+        )
+        caption = self.cross_attention(caption, image)
         caption = self.feed_forward(caption)
         return caption
 

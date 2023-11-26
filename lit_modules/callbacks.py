@@ -3,7 +3,12 @@ from lightning.pytorch.callbacks import Callback
 
 import data_processing.image_transforms
 from evaluation.extract_heads import aggregate_heads, extract_decoder_heads, extract_encoder_heads
-from evaluation.visualizing import plot_self_attention, plot_cross_attention, plot_captioned_image, visualize_candidates_graph
+from evaluation.visualizing import (
+    plot_self_attention,
+    plot_cross_attention,
+    plot_captioned_image,
+    visualize_candidates_graph,
+)
 from evaluation.caption_generator import CaptionGenerator
 from data_processing.tokenizer import Tokenizer
 from data_processing.image_transforms import ImageTransforms

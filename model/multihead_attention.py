@@ -59,18 +59,41 @@ class MultiHeadAttention(nn.Module):
         self.key_dim = embeddings_number // heads_number  # AKA head_dim
 
         # Proposed to achieve Locality Self Attention
-        if not trainable_scale:
-            self.tau = math.sqrt(self.key_dim)
-        else:
-            self.tau = nn.Parameter(torch.tensor(math.sqrt(self.key_dim)))
+        self.tau = math.sqrt(self.key_dim * heads_number)
+        if trainable_scale:
+            self.tau = nn.Parameter(torch.tensor(self.tau))
 
-        self.query_projection = nn.Linear(input_shapes[0], embeddings_number)
-        self.key_projection = nn.Linear(input_shapes[1], embeddings_number)
-        self.value_projection = nn.Linear(input_shapes[2], embeddings_number)
-        self.output_projection = nn.Linear(embeddings_number, embeddings_number)
+        self.query_projection = nn.Linear(input_shapes[0], embeddings_number * heads_number)
+        self.key_projection = nn.Linear(input_shapes[1], embeddings_number * heads_number)
+        self.value_projection = nn.Linear(input_shapes[2], embeddings_number * heads_number)
+        self.output_projection = nn.Linear(embeddings_number * heads_number, embeddings_number)
         self.dropout = nn.Dropout(dropout_rate)
         self.softmax = nn.Softmax(dim=-1)
         self.attention_weights = None
+
+    @staticmethod
+    def _build_mask(
+        attention_mask: Optional[torch.Tensor],
+        padding_mask: Optional[torch.Tensor],
+        batches: int,
+        heads: int,
+        query_dim: int,
+    ) -> Optional[torch.Tensor]:
+        if attention_mask is None and padding_mask is None:
+            return None
+        if attention_mask is not None and padding_mask is None:
+            output_mask = attention_mask.unsqueeze(0).unsqueeze(0)
+            output_mask.expand(batches, heads, attention_mask.shape[0], attention_mask.shape[1])
+            return output_mask
+        if attention_mask is None and padding_mask is not None:
+            output_mask = padding_mask.unsqueeze(1).unsqueeze(1)
+            output_mask.expand(padding_mask.shape[0], heads, query_dim, padding_mask.shape[1])
+            return output_mask
+        if attention_mask is not None and padding_mask is not None:
+            output_mask = attention_mask[:, None, :] | padding_mask[None, None, :]
+            output_mask = output_mask.expand(heads, query_dim, batches, attention_mask.shape[1])
+            output_mask = output_mask.permute(2, 0, 1, 3)
+            return output_mask
 
     def forward(
         self,
@@ -94,23 +117,17 @@ class MultiHeadAttention(nn.Module):
         value = self.value_projection(value)  # [B, T_v, val_dim * num_heads]
 
         # Splitting heads
-        query = query.reshape(B, T_q, self.num_heads, self.key_dim).permute(0, 2, 1, 3)  # [B, num_heads, T_q, key_dim]
-        key = key.reshape(B, T_k, self.num_heads, self.key_dim).permute(0, 2, 1, 3)  # [B, num_heads, T_k, key_dim]
-        value = value.reshape(B, T_k, self.num_heads, self.key_dim).permute(0, 2, 1, 3)  # [B, num_heads, T_v, val_dim]
+        query = query.reshape(B, T_q, self.num_heads, -1).permute(0, 2, 1, 3) / self.tau  # [B, num_heads, T_q, key_dim]
+        key = key.reshape(B, T_k, self.num_heads, -1).permute(0, 2, 1, 3)  # [B, num_heads, T_k, key_dim]
+        value = value.reshape(B, T_k, self.num_heads, -1).permute(0, 2, 1, 3)  # [B, num_heads, T_v, val_dim]
 
         # Dot-product between the query and the key
         affinity = query @ key.transpose(-2, -1)  # [B, num_heads, T_q, T_k]
-        affinity = affinity / self.tau
 
         # Masking sequence items that should not be attended to or are padding
-        if attention_mask is not None:
-            attention_mask = attention_mask[None, None, :, :]
-            affinity = affinity.masked_fill(attention_mask, float("-inf"))
-
-        # Masking paddings from sequence
-        if key_padding_mask is not None:
-            key_padding_mask = key_padding_mask[:, None, None, :]
-            affinity = affinity.masked_fill(key_padding_mask, float("-inf"))
+        mask = self._build_mask(attention_mask, key_padding_mask, B, self.num_heads, T_q)
+        if mask is not None:
+            affinity += mask * -1e9
 
         affinity = self.softmax(affinity)
         self.attention_weights = affinity

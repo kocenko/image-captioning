@@ -64,6 +64,8 @@ class CaptionGenerator:
 
     @torch.no_grad()
     def generate_beam_search(self, image_path: str, beam_width: int) -> tuple[list[int], CandidateNode]:
+        self.model.eval()
+
         image = self.transform.transform(self.transform.read_image(image_path).unsqueeze(0))
         caption_start = torch.tensor([self.bos]).unsqueeze(0)
 
@@ -92,6 +94,8 @@ class CaptionGenerator:
 
         best_candidate = max(ready_captions, key=lambda x: x.probability)
         tokens_to_return = best_candidate.tokens
+
+        self.model.train()
         return tokens_to_return, root_node
 
     @torch.no_grad()
@@ -100,18 +104,19 @@ class CaptionGenerator:
 
         Args:
             image_path (str): path to the image to generate the caption for
-            max_size (int): maximal size of the caption
             temperature (float): scaling model's output to achieve different results
 
         Returns:
             String with the generated caption
         """
 
+        self.model.eval()
+
         generated_caption = torch.tensor([self.bos]).unsqueeze(0)
         image = self.transform.read_image(image_path).unsqueeze(0)
         image = self.transform.transform(image)
 
-        for _ in range(self.tokenizer.max_length-1):
+        for _ in range(self.tokenizer.max_length - 1):
             logits = self.model(image, generated_caption)
             logits = logits[:, :, -1]  # Fetching the last token of the generated sequence
             predictions = F.softmax(logits, dim=-1)
@@ -125,6 +130,8 @@ class CaptionGenerator:
                 break
 
         caption_list = generated_caption[0].tolist()
+
+        self.model.train()
         return caption_list
 
 

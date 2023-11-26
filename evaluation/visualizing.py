@@ -289,4 +289,3 @@ def visualize_candidates_graph(root_node: CandidateNode, decode_tokens: Callable
     # G.add_nodes_from([decode_tokens(child.tokens) for child in root_node.children])
     # G.add_edges_from([(decode_tokens(root_node.tokens), decode_tokens(child.tokens)) for child in root_node.children])
     # nx.draw(G, with_labels=True, arrows=True)
-
