@@ -43,6 +43,7 @@ class FeatureExtractor:
 
         for param in self.model.parameters():
             param.requires_grad = False
+        self.model.eval()
 
         self.last_layer_name = self.list_all_layers()[-1]
 
