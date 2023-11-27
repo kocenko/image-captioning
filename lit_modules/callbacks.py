@@ -32,19 +32,19 @@ class GenerateCaption(Callback):
         self.image_embedding_size = image_embedding_size
         self.show_self_attention = show_self_attention
 
-    def on_train_epoch_end(self, trainer, pl_module) -> None:
+    def on_train_epoch_start(self, trainer, pl_module) -> None:
         tensorboard = pl_module.logger.experiment
+        generator = CaptionGenerator(pl_module.model, self.tokenizer, self.image_transform, self.vocabulary_size, device=pl_module.device)
 
-        image = self.image_transform.read_image(self.image_path).permute(1, 2, 0)
-        generator = CaptionGenerator(pl_module.model, self.tokenizer, self.image_transform, self.vocabulary_size)
+        # Visualizing root image with the generated caption
         raw_caption = generator.generate(self.image_path, temperature=0.0)
-
-        # visualize_candidates_graph(root_node, self.tokenizer.decode)
-
         generated_caption = self.tokenizer.decode(raw_caption)
-        print(generated_caption)
+        image = self.image_transform.read_image(self.image_path).permute(1, 2, 0)
         captioned_fig = plot_captioned_image(image, generated_caption)
         tensorboard.add_figure("captioned_image", captioned_fig, trainer.current_epoch)
+        print(generated_caption)
+
+        # visualize_candidates_graph(root_node, self.tokenizer.decode)
 
         # Refitting the model
         dummy_caption = torch.tensor(raw_caption).unsqueeze(0)

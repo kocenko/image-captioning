@@ -31,7 +31,7 @@ class CaptionGenerator:
     """
 
     def __init__(
-        self, model: CaptionTransformer, tokenizer: Tokenizer, transform: ImageTransforms, vocab_size: int
+        self, model: CaptionTransformer, tokenizer: Tokenizer, transform: ImageTransforms, vocab_size: int, device: str
     ) -> None:
         """Initializes caption generator
 
@@ -48,6 +48,7 @@ class CaptionGenerator:
         self.vocab_size = vocab_size
         self.bos = self.tokenizer.encode_map[Tokenizer.start_token]
         self.eos = self.tokenizer.encode_map[Tokenizer.end_token]
+        self.device = device
 
     @staticmethod
     def find_top_best(probabilities: torch.Tensor, k: int, root_node: CandidateNode) -> list[CandidateNode]:
@@ -67,7 +68,7 @@ class CaptionGenerator:
         self.model.eval()
 
         image = self.transform.transform(self.transform.read_image(image_path).unsqueeze(0))
-        caption_start = torch.tensor([self.bos]).unsqueeze(0)
+        caption_start = torch.tensor([self.bos], device=self.device).unsqueeze(0)
 
         # Initial prediction
         root_node = CandidateNode([self.bos], 1.0, None, None, True)
@@ -112,7 +113,7 @@ class CaptionGenerator:
 
         self.model.eval()
 
-        generated_caption = torch.tensor([self.bos]).unsqueeze(0)
+        generated_caption = torch.tensor([self.bos], device=self.device).unsqueeze(0)
         image = self.transform.read_image(image_path).unsqueeze(0)
         image = self.transform.transform(image)
 
