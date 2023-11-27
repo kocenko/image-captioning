@@ -16,16 +16,17 @@ class LocalitySelfAttention(nn.Module):
             dropout_rate=dropout_rate,
             trainable_scale=True,
         )
-        self.layer_norm = nn.LayerNorm(embeddings)
+        self.layer_norm_before = nn.LayerNorm(embeddings)
+        self.layer_norm_after = nn.LayerNorm(embeddings)
 
     def forward(
         self,
         x: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        attention = self.mha(x, x, x, attention_mask)
+        attention = self.mha(x, x, x, self.layer_norm_before(attention_mask))
         residual = x + attention
-        normalized = self.layer_norm(residual)
+        normalized = self.layer_norm_after(residual)
         return normalized
 
 
