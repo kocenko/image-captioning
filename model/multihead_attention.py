@@ -58,9 +58,11 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = heads_number
         self.key_dim = embeddings_number // heads_number  # AKA head_dim
 
-        self.tau = math.sqrt(self.key_dim)
+        tau = math.sqrt(self.key_dim)
         if trainable_scale:
-            self.tau = nn.Parameter(torch.tensor(self.tau))
+            self.tau = nn.Parameter(torch.tensor(tau))
+        else:
+            self.tau = tau
 
         self.query_projection = nn.Linear(input_shapes[0], embeddings_number)
         self.key_projection = nn.Linear(input_shapes[1], embeddings_number)
