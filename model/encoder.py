@@ -15,8 +15,8 @@ class EncoderInput(nn.Module):
     ):
         super().__init__()
         patches_num = (image_size // patch_size) ** 2
-        self.patch_tokenizer = PatchTokenizer(image_size, patch_size, embeddings, shift_pixels)
         self.positional_embedding = nn.Embedding(patches_num, embeddings)
+        self.patch_tokenizer = PatchTokenizer(image_size, patch_size, embeddings, None)
         self.register_buffer("sequence_indices", torch.arange(patches_num), persistent=False)
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
@@ -36,7 +36,7 @@ class EncoderBlock(nn.Module):
     ):
         super().__init__()
         self.self_attention = LocalitySelfAttention(embeddings, heads_num, dropout_rate)
-        self.feed_forward = FeedForward(embeddings, 4, dropout_rate)
+        self.feed_forward = FeedForward(embeddings, 4, dropout_rate, False)
 
         # noinspection PyTypeChecker
         self.register_buffer("diagonal_mask", torch.eye(patches_num) == 1, persistent=False)
