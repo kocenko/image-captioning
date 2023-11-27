@@ -39,9 +39,9 @@ class GenerateCaption(Callback):
         # Visualizing root image with the generated caption
         raw_caption = generator.generate(self.image_path, temperature=0.0)
         generated_caption = self.tokenizer.decode(raw_caption)
-        image = self.image_transform.read_image(self.image_path).permute(1, 2, 0)
-        captioned_fig = plot_captioned_image(image, generated_caption)
-        tensorboard.add_figure("captioned_image", captioned_fig, trainer.current_epoch)
+        # image = self.image_transform.read_image(self.image_path).permute(1, 2, 0)
+        # captioned_fig = plot_captioned_image(image, generated_caption)
+        # tensorboard.add_figure("captioned_image", captioned_fig, trainer.current_epoch)
         print(generated_caption)
 
         # visualize_candidates_graph(root_node, self.tokenizer.decode)
