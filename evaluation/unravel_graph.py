@@ -1,5 +1,5 @@
 from typing import Callable
-from evaluation.caption_generator import CandidateNode
+from model.transformer import CandidateNode
 
 
 def unravel_graph(root_node: CandidateNode, hashing_fun: Callable):

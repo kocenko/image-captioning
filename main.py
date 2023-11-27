@@ -51,21 +51,18 @@ def main():
     hyperparameters["counter"] = lit_data_module.tokenizer.counter
     hyperparameters["encode_map"] = lit_data_module.tokenizer.encode_map
 
-    ct = CaptionTransformer(**hyperparameters) if not extractor else CaptionTransformer(extractor, **hyperparameters)
+    if not extractor:
+        ct = CaptionTransformer(lit_data_module.tokenizer, image_transform, **hyperparameters)
+    else:
+        ct = CaptionTransformer(lit_data_module.tokenizer, image_transform, extractor, **hyperparameters)
+
     if pretrained_weights_path and not extractor:
         ct.load_weights(pretrained_weights_path)
 
     lit_model = ModelModule(ct, hyperparameters["encode_map"], hyperparameters["learning_rate"])
 
     early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
-    caption_gen = GenerateCaption(
-        sample_image,
-        lit_data_module.tokenizer,
-        lit_data_module.transform,
-        hyperparameters["vocabulary_size"],
-        image_embedding_size,
-        not feature_extractor,
-    )
+    caption_gen = GenerateCaption(sample_image, image_embedding_size, not feature_extractor)
 
     trainer = Trainer(
         default_root_dir=checkpoints_folder,

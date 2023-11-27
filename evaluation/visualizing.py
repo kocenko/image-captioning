@@ -8,7 +8,7 @@ import random
 import torch
 import networkx as nx
 
-from evaluation.caption_generator import CandidateNode
+from model.transformer import CandidateNode
 from evaluation.unravel_graph import unravel_graph
 
 

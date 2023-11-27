@@ -9,7 +9,6 @@ from evaluation.visualizing import (
     plot_captioned_image,
     visualize_candidates_graph,
 )
-from evaluation.caption_generator import CaptionGenerator
 from data_processing.tokenizer import Tokenizer
 from data_processing.image_transforms import ImageTransforms
 
@@ -18,28 +17,21 @@ class GenerateCaption(Callback):
     def __init__(
         self,
         image_path: str,
-        tokenizer: Tokenizer,
-        image_transform: ImageTransforms,
-        vocab_size: int,
         image_embedding_size: int,
         show_self_attention: bool,
     ):
         super().__init__()
         self.image_path = image_path
-        self.tokenizer = tokenizer
-        self.image_transform = image_transform
-        self.vocabulary_size = vocab_size
         self.image_embedding_size = image_embedding_size
         self.show_self_attention = show_self_attention
 
     def on_train_epoch_start(self, trainer, pl_module) -> None:
         tensorboard = pl_module.logger.experiment
-        generator = CaptionGenerator(pl_module.model, self.tokenizer, self.image_transform, self.vocabulary_size, device=pl_module.device)
 
         # Visualizing root image with the generated caption
-        raw_caption = generator.generate(self.image_path, temperature=0.0)
-        generated_caption = self.tokenizer.decode(raw_caption)
-        image = self.image_transform.read_image(self.image_path).permute(1, 2, 0)
+        raw_caption, _ = pl_module.model.generate_beam_search(self.image_path, 3)
+        generated_caption = pl_module.model.tokenizer.decode(raw_caption)
+        image = pl_module.model.image_transform.read_image(self.image_path).permute(1, 2, 0)
         captioned_fig = plot_captioned_image(image, generated_caption)
         tensorboard.add_figure("captioned_image", captioned_fig, trainer.current_epoch)
         print(generated_caption)
