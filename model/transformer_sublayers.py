@@ -78,7 +78,7 @@ class CrossAttention(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, embeddings: int, hidden_scale: int, dropout_rate: float):
+    def __init__(self, embeddings: int, hidden_scale: int, dropout_rate: float, layer_norm: bool = True):
         super().__init__()
         self.ff = nn.Sequential(
             nn.Linear(embeddings, hidden_scale * embeddings),
@@ -86,10 +86,16 @@ class FeedForward(nn.Module):
             nn.Linear(hidden_scale * embeddings, embeddings),
             nn.Dropout(dropout_rate),
         )
-        self.layer_norm = nn.LayerNorm(embeddings)
+        if layer_norm:
+            self.layer_norm = nn.LayerNorm(embeddings)
+        else:
+            self.layer_norm = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         fed = self.ff(x)
         residual = x + fed
-        normalized = self.layer_norm(residual)
+        if self.layer_norm is not None:
+            normalized = self.layer_norm(residual)
+        else:
+            normalized = residual
         return normalized
