@@ -39,23 +39,23 @@ class GenerateCaption(Callback):
         # Visualizing root image with the generated caption
         raw_caption = generator.generate(self.image_path, temperature=0.0)
         generated_caption = self.tokenizer.decode(raw_caption)
-        # image = self.image_transform.read_image(self.image_path).permute(1, 2, 0)
-        # captioned_fig = plot_captioned_image(image, generated_caption)
-        # tensorboard.add_figure("captioned_image", captioned_fig, trainer.current_epoch)
+        image = self.image_transform.read_image(self.image_path).permute(1, 2, 0)
+        captioned_fig = plot_captioned_image(image, generated_caption)
+        tensorboard.add_figure("captioned_image", captioned_fig, trainer.current_epoch)
         print(generated_caption)
 
         # visualize_candidates_graph(root_node, self.tokenizer.decode)
 
         # Refitting the model
-        dummy_caption = torch.tensor(raw_caption).unsqueeze(0)
-        dummy_image = self.image_transform.transform(self.image_transform.read_image(self.image_path).unsqueeze(0))
-        pl_module.model(dummy_image, dummy_caption)
-
-        dummy_image = self.image_transform.denormalize(dummy_image.squeeze(0))
-        if self.show_self_attention:
-            encoder_heads = extract_encoder_heads(pl_module.model)
-            self_att_fig = plot_self_attention(dummy_image, encoder_heads, 3, 4, self.image_embedding_size)
-            tensorboard.add_figure("self_attention", self_att_fig)
+        # dummy_caption = torch.tensor(raw_caption).unsqueeze(0)
+        # dummy_image = self.image_transform.transform(self.image_transform.read_image(self.image_path).unsqueeze(0))
+        # pl_module.model(dummy_image, dummy_caption)
+        #
+        # dummy_image = self.image_transform.denormalize(dummy_image.squeeze(0))
+        # if self.show_self_attention:
+        #     encoder_heads = extract_encoder_heads(pl_module.model)
+        #     self_att_fig = plot_self_attention(dummy_image, encoder_heads, 3, 4, self.image_embedding_size)
+        #     tensorboard.add_figure("self_attention", self_att_fig)
 
         # decoder_heads = extract_decoder_heads(pl_module.model)
         # aggregated_heads = aggregate_heads(decoder_heads, method="sum")
