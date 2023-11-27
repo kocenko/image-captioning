@@ -24,7 +24,8 @@ class LocalitySelfAttention(nn.Module):
         x: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        attention = self.mha(x, x, x, self.layer_norm_before(attention_mask))
+        x_norm = self.layer_norm_before(x)
+        attention = self.mha(x_norm, x_norm, x_norm, attention_mask)
         residual = x + attention
         normalized = self.layer_norm_after(residual)
         return normalized
