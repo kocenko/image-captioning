@@ -26,6 +26,7 @@ class DecoderInput(nn.Module):
 
         if self.learnable_pos:
             self.positional_encoding = nn.Embedding(max_caption_length, embeddings)
+            self.register_buffer("sequence_indices", torch.arange(max_caption_length), persistent=False)
         else:
             # Calculating positional encoding based on the "Attention is All You Need"
             # Based on: https://medium.com/@hunter-j-phillips/positional-encoding-7a93db4109e6
@@ -42,7 +43,9 @@ class DecoderInput(nn.Module):
         token_embedding = torch.masked_fill(token_embedding, padding_mask[:, :, None], 0)
 
         if self.learnable_pos:
-            positional_embeddings = self.positional_encoding(torch.arange(token_embedding.shape[1]).unsqueeze(0))
+            positional_embeddings = self.positional_encoding(
+                self.sequence_indices[: token_embedding.shape[1]]
+            ).unsqueeze(0)
             token_embedding = token_embedding + positional_embeddings
         else:
             token_embedding = token_embedding + self.positional_encoding[:, : token_embedding.shape[1], :]
