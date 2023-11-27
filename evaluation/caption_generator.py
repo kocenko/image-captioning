@@ -116,6 +116,7 @@ class CaptionGenerator:
         generated_caption = torch.tensor([self.bos], device=self.device).unsqueeze(0)
         image = self.transform.read_image(image_path).unsqueeze(0)
         image = self.transform.transform(image)
+        image.to(self.device)
 
         for _ in range(self.tokenizer.max_length - 1):
             logits = self.model(image, generated_caption)
