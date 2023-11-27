@@ -65,7 +65,7 @@ class DecoderBlock(nn.Module):
         super().__init__()
         self.self_attention = SelfAttention(embeddings, heads_num, dropout_rate)
         self.cross_attention = CrossAttention(embeddings, cross_attention_key_dim, heads_num, dropout_rate)
-        self.feed_forward = FeedForward(embeddings, dropout_rate)
+        self.feed_forward = FeedForward(embeddings, 2, dropout_rate)
 
         # noinspection PyTypeChecker
         self.register_buffer(

@@ -77,12 +77,12 @@ class CrossAttention(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, embeddings: int, dropout_rate: float):
+    def __init__(self, embeddings: int, hidden_scale: int, dropout_rate: float):
         super().__init__()
         self.ff = nn.Sequential(
-            nn.Linear(embeddings, 2 * embeddings),
+            nn.Linear(embeddings, hidden_scale * embeddings),
             nn.ReLU(),
-            nn.Linear(2 * embeddings, embeddings),
+            nn.Linear(hidden_scale * embeddings, embeddings),
             nn.Dropout(dropout_rate),
         )
         self.layer_norm = nn.LayerNorm(embeddings)

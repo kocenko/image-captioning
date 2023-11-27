@@ -36,7 +36,7 @@ class EncoderBlock(nn.Module):
     ):
         super().__init__()
         self.self_attention = LocalitySelfAttention(embeddings, heads_num, dropout_rate)
-        self.feed_forward = FeedForward(embeddings, dropout_rate)
+        self.feed_forward = FeedForward(embeddings, 2, dropout_rate)
 
         # noinspection PyTypeChecker
         self.register_buffer("diagonal_mask", torch.eye(patches_num) == 1, persistent=False)
