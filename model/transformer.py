@@ -87,9 +87,14 @@ class CaptionTransformer(nn.Module):
             matching_params = [
                 (self_name, self_param)
                 for self_name, self_param in self.named_parameters()
-                if self_name in mappings and self_param.shape == vit_weights[mappings[self_name]].shape
+                if self_name in mappings
             ]
 
             for name, param in matching_params:
                 pretrained = vit_weights[mappings[name]]
+
+                # A hack used to remove 'cls' token from positional embedding
+                if name == 'encoder_input.positional_embedding.weight':
+                    pretrained = pretrained[:, 1:, :].reshape(param.shape)
+
                 param.data.copy_(pretrained)
