@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from model.multihead_attention import MultiHeadAttention
 from model.patch_tokenization import PatchTokenizer
+from model.transformer_sublayers import LocalitySelfAttention, FeedForward
 
 
 class EncoderInput(nn.Module):
@@ -23,7 +23,6 @@ class EncoderInput(nn.Module):
         patches = self.patch_tokenizer(image)
         positional_embedding = self.positional_embedding(self.sequence_indices)
         output = patches + positional_embedding
-        # TODO: Consider dropout here
         return output
 
 
@@ -36,31 +35,13 @@ class EncoderBlock(nn.Module):
         patches_num: int,
     ):
         super().__init__()
-        self.pre_normalization = nn.LayerNorm(embeddings)
-        self.attention = MultiHeadAttention(
-            input_shapes=(embeddings, embeddings, embeddings),
-            embeddings_number=embeddings,
-            heads_number=heads_num,
-            trainable_scale=True,
-        )
-        self.post_normalization = nn.LayerNorm(embeddings)
+        self.self_attention = LocalitySelfAttention(embeddings, heads_num, dropout_rate)
+        self.feed_forward = FeedForward(embeddings, dropout_rate)
 
-        self.feed_forward = nn.Sequential(
-            nn.Linear(embeddings, 4 * embeddings),
-            nn.GELU(),
-            nn.Linear(4 * embeddings, embeddings),
-            nn.Dropout(dropout_rate),
-        )
-
-        # Used to ensure Locality Self Attention
         # noinspection PyTypeChecker
-        self.register_buffer("diagonal_mask", torch.eye(patches_num) == 1)
+        self.register_buffer("diagonal_mask", torch.eye(patches_num) == 1, persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x_norm = self.pre_normalization(x)
-        sa = self.attention(x_norm, x_norm, x_norm, self.diagonal_mask)
-        x = x + sa
-        x_post_norm = self.post_normalization(x)
-        ff = self.feed_forward(x_post_norm)
-        x = x + ff
+        x = self.self_attention(x, self.diagonal_mask)
+        x = self.feed_forward(x)
         return x

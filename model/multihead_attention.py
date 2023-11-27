@@ -58,15 +58,14 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = heads_number
         self.key_dim = embeddings_number // heads_number  # AKA head_dim
 
-        # Proposed to achieve Locality Self Attention
-        self.tau = math.sqrt(self.key_dim * heads_number)
+        self.tau = math.sqrt(self.key_dim)
         if trainable_scale:
             self.tau = nn.Parameter(torch.tensor(self.tau))
 
-        self.query_projection = nn.Linear(input_shapes[0], embeddings_number * heads_number)
-        self.key_projection = nn.Linear(input_shapes[1], embeddings_number * heads_number)
-        self.value_projection = nn.Linear(input_shapes[2], embeddings_number * heads_number)
-        self.output_projection = nn.Linear(embeddings_number * heads_number, embeddings_number)
+        self.query_projection = nn.Linear(input_shapes[0], embeddings_number)
+        self.key_projection = nn.Linear(input_shapes[1], embeddings_number)
+        self.value_projection = nn.Linear(input_shapes[2], embeddings_number)
+        self.output_projection = nn.Linear(embeddings_number, embeddings_number)
         self.dropout = nn.Dropout(dropout_rate)
         self.softmax = nn.Softmax(dim=-1)
         self.attention_weights = None

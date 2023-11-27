@@ -6,7 +6,7 @@ import torch
 from torch import nn
 import numpy as np
 
-from model.attention_sublayers import SelfAttention, CrossAttention, FeedForward
+from model.transformer_sublayers import SelfAttention, CrossAttention, FeedForward
 
 
 class DecoderInput(nn.Module):

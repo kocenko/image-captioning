@@ -6,6 +6,29 @@ import torch.nn as nn
 from model.multihead_attention import MultiHeadAttention
 
 
+class LocalitySelfAttention(nn.Module):
+    def __init__(self, embeddings: int, heads_num: int, dropout_rate: float):
+        super().__init__()
+        self.mha = MultiHeadAttention(
+            input_shapes=(embeddings, embeddings, embeddings),
+            embeddings_number=embeddings,
+            heads_number=heads_num,
+            dropout_rate=dropout_rate,
+            trainable_scale=True,
+        )
+        self.layer_norm = nn.LayerNorm(embeddings)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        attention = self.mha(x, x, x, attention_mask)
+        residual = x + attention
+        normalized = self.layer_norm(residual)
+        return normalized
+
+
 class SelfAttention(nn.Module):
     def __init__(self, embeddings: int, heads_num: int, dropout_rate: float):
         super().__init__()
