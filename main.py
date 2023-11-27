@@ -56,6 +56,9 @@ def main():
         ct.load_weights(pretrained_weights_path)
 
     lit_model = ModelModule(ct, hyperparameters["encode_map"], hyperparameters["learning_rate"])
+    if extractor:
+        ct.feature_extractor.model.to(lit_model.device)
+
     early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
     caption_gen = GenerateCaption(
         sample_image,
