@@ -152,6 +152,10 @@ class CaptionTransformer(nn.Module):
                     to_generate -= 1
                     continue
                 caption = torch.tensor(candidate.tokens).unsqueeze(0)
+
+                print(f'\n\n\nIMAGE: {image.get_device()}')
+                print(f'CAPTION: {caption.get_device()}\n\n\n')
+
                 logits = self(image, caption)[:, :, -1]
                 probabilities = F.softmax(logits, dim=-1).squeeze()
                 all_best.extend(self.find_top_best(probabilities, to_generate, beam_width, candidate, search_graph))
