@@ -292,7 +292,7 @@ def visualize_candidates_graph(graph: CandidateGraph, show: bool = False):
 
     fig, ax = plt.subplots()
     nx.draw_networkx_edges(g, pos, ax=ax, edge_color=params['edge_colors'], arrows=True, width=4, alpha=params['edge_alphas'])
-    nx.draw_networkx_nodes(g, pos, ax=ax, node_size=1000, node_shape='o', alpha=params['node_alphas'], node_color=params['node_colors'])
+    nx.draw_networkx_nodes(g, pos, ax=ax, node_size=1000, node_shape='o', alpha=params['node_alphas'], node_color=params['node_colors'], edgecolors=params['node_outline_colors'])
     nx.draw_networkx_labels(g, pos_labels, ax=ax, labels=params['labels'], bbox=bbox_props, font_size=8, verticalalignment='center_baseline', font_family='serif')
     ax.axis('off')
     fig.tight_layout()

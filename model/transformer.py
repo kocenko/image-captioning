@@ -120,7 +120,8 @@ class CaptionTransformer(nn.Module):
                 root_node.id * beam_width + (i + 1),
                 root_node.tokens + [token_id],
                 root_node.probability * probability,
-                False
+                False,
+                False,
             )
             search_graph.nodes[child.id] = child
             search_graph.edges[root_node.id].append(child.id)
@@ -137,7 +138,7 @@ class CaptionTransformer(nn.Module):
 
         # Initialization
         search_graph = CandidateGraph({}, defaultdict(list))
-        root_node = CandidateNode(0, [bos], 1.0, True)
+        root_node = CandidateNode(0, [bos], 1.0, True, False)
         search_graph.nodes[0] = root_node
         best_nodes = [root_node]
 
@@ -148,6 +149,7 @@ class CaptionTransformer(nn.Module):
             for candidate in best_nodes:
                 candidate.best = True
                 if candidate.tokens[-1] == eos or len(candidate.tokens) == self.tokenizer.max_length - 1:
+                    candidate.last = True
                     ready_captions.append(candidate)
                     to_generate -= 1
                     continue

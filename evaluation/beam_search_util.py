@@ -5,13 +5,13 @@ import networkx as nx
 import numpy as np
 
 
-
 @dataclass
 class CandidateNode:
     id: int
     tokens: list[int]
     probability: float
     best: bool
+    last: bool
 
 
 @dataclass
@@ -72,6 +72,7 @@ def unravel_graph(candidate_graph: CandidateGraph) -> tuple[nx.DiGraph, dict]:
     labels = {}
     node_alphas = []
     node_colors = []
+    node_outline_colors = []
     edge_alphas = []
     edge_colors = []
 
@@ -80,6 +81,7 @@ def unravel_graph(candidate_graph: CandidateGraph) -> tuple[nx.DiGraph, dict]:
         labels[node.id] = '[{}] P={:.2e}'.format(node.id, node.probability)
         node_alphas.append(node.probability)
         node_colors.append('indigo' if node.best else 'black')
+        node_outline_colors.append('red' if node.last else 'black')
 
     for parent_id, children_ids in new_edges.items():
         for child_id in children_ids:
@@ -91,6 +93,7 @@ def unravel_graph(candidate_graph: CandidateGraph) -> tuple[nx.DiGraph, dict]:
     params['labels'] = labels
     params['node_alphas'] = scale_params(node_alphas, alpha_max, alpha_min, float)
     params['node_colors'] = node_colors
+    params['node_outline_colors'] = node_outline_colors
     params['edge_alphas'] = scale_params(edge_alphas, alpha_max, alpha_min, float)
     params['edge_colors'] = edge_colors
     params['nodes'] = new_nodes
