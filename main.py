@@ -14,7 +14,7 @@ from data_processing.feature_extractor import FeatureExtractor
 
 def main():
     # Reading configuration data from yaml file
-    config_file = "configs/mobilenet_small_flickr8k_surfing_homepc.yaml"
+    config_file = "configs/mobilenet_small_flickr8k_bikes_homepc.yaml"
     with open(config_file, "r") as file:
         config = yaml.safe_load(file)
 
