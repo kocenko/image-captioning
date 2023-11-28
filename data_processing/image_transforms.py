@@ -10,7 +10,7 @@ class ImageTransforms:
     def __init__(self, image_size: int, model_name: Optional[str] = None):
         self.mean = [0.485, 0.456, 0.406]
         self.std = [0.229, 0.224, 0.225]
-        self.device = None
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         if model_name:
             self.transformations = PRETRAINED_MODELS[model_name]["weights"].transforms(
@@ -29,23 +29,14 @@ class ImageTransforms:
             std=[1.0 / single_std for single_std in self.std],
         )
 
-    def to(self, device: str):
-        self.device = device
-
     def read_image(self, path_to_image: str) -> torch.Tensor:
-        image = read_image(path_to_image)
-        if self.device is not None:
-            image = image.to(self.device)
+        image = read_image(path_to_image).to(self.device)
         return image
 
     def denormalize(self, image: torch.Tensor) -> torch.Tensor:
-        denormalized = self.denormalize(image)
-        if self.device is not None:
-            denormalized = denormalized.to(self.device)
+        denormalized = self.denormalize(image).to(self.device)
         return denormalized
 
     def transform(self, image: torch.Tensor) -> torch.Tensor:
-        transformed_image = self.transformations(image)
-        if self.device is not None:
-            transformed_image = transformed_image.to(self.device)
+        transformed_image = self.transformations(image).to(self.device)
         return transformed_image

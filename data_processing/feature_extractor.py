@@ -41,8 +41,6 @@ class FeatureExtractor:
         self.model = model_config["model"](weights=model_config["weights"])
         self.image_transform = image_transform
 
-        if torch.cuda.is_available():
-            self.model.cuda()
         for param in self.model.parameters():
             param.requires_grad = False
         self.model.eval()

@@ -1,3 +1,4 @@
+import torch.cuda
 import yaml
 
 from lightning import Trainer
@@ -34,6 +35,8 @@ def main():
         image_transform = ImageTransforms(hyperparameters["image_size"], feature_extractor)
         extractor = FeatureExtractor(feature_extractor, image_transform)
         extractor.slice_net(slice_layer_name, overwrite_model=True)
+        if torch.cuda.is_available():
+            extractor.model.cuda()
     else:
         image_transform = ImageTransforms(hyperparameters["image_size"])
 
