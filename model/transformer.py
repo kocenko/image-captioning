@@ -59,6 +59,11 @@ class CaptionTransformer(nn.Module):
             torch.tensor([encode_map[Tokenizer.start_token]]).unsqueeze(0), persistent=False
         )
 
+    def to_device(self, device: str):
+        self.image_transform.to(device)
+        if self.feature_extractor is not None:
+            self.feature_extractor.model.to(device)
+
     @staticmethod
     def get_padding_mask(caption_batch: torch.Tensor, padding_idx: int = 0) -> torch.Tensor:
         # noinspection PyTypeChecker

@@ -1,4 +1,5 @@
 from typing import Callable
+from collections import defaultdict
 import os
 import math
 import matplotlib.pyplot as plt
@@ -8,8 +9,8 @@ import random
 import torch
 import networkx as nx
 
-from model.transformer import CandidateNode
-from evaluation.unravel_graph import unravel_graph
+from model.transformer import CandidateGraph
+from evaluation.beam_search_util import unravel_graph
 
 
 def plot_numpy_logs(name: str, folder: str = "../numpy_logs", batch_num: int = 0) -> None:
@@ -282,10 +283,17 @@ def plot_cross_attention(
     return fig
 
 
-def visualize_candidates_graph(root_node: CandidateNode, decode_tokens: Callable):
-    unravel_graph(root_node, decode_tokens)
-    # G = nx.DiGraph()
-    # G.add_node(decode_tokens(root_node.tokens))
-    # G.add_nodes_from([decode_tokens(child.tokens) for child in root_node.children])
-    # G.add_edges_from([(decode_tokens(root_node.tokens), decode_tokens(child.tokens)) for child in root_node.children])
-    # nx.draw(G, with_labels=True, arrows=True)
+def visualize_candidates_graph(graph: CandidateGraph, decode_tokens: Callable):
+    g, params = unravel_graph(graph)
+
+    nodes, edges = params['nodes'], params['edges']
+    for node_id, node in nodes.items():
+        print(f'{node.id} --- {decode_tokens(node.tokens)}')
+
+    bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=1.0)
+    pos = nx.drawing.nx_agraph.graphviz_layout(g, prog="dot", args="-Grankdir=LR")
+    nx.draw_networkx_edges(g, pos, edge_color=params['edge_colors'], arrows=False, width=9, alpha=0.8)
+    nx.draw_networkx_nodes(g, pos, node_size=900, node_shape='o', alpha=params['node_alphas'], node_color='indigo')
+    nx.draw_networkx_labels(g, pos, bbox=bbox_props, font_size=8)
+
+    plt.show()
