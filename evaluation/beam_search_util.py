@@ -2,6 +2,7 @@ from typing import Union
 from dataclasses import dataclass
 from collections import defaultdict
 import networkx as nx
+import numpy as np
 
 
 
@@ -19,7 +20,9 @@ class CandidateGraph:
     edges: defaultdict
 
 
-def scale_params(sizes: list[float], max_size: Union[int, float] = 1000, min_size: Union[int, float] = 10, which_type: type = int) -> list[int]:
+def scale_params(sizes: list[float], max_size: Union[int, float] = 1000, min_size: Union[int, float] = 10, which_type: type = int, use_log: bool = True) -> list[int]:
+    if use_log:
+        sizes = np.log10(sizes)
     max_elem_size = max(sizes)
     min_elem_size = min(sizes)
     divisor = (max_elem_size - min_elem_size)
@@ -42,8 +45,19 @@ def truncate_graph(nodes: dict, edges: dict) -> tuple[dict, dict]:
             edges[child] = edges[edges[child][0]]
 
     parents.extend([child for child in all_children if len(edges[child]) == 1])
-    new_nodes = {parent: nodes[parent] for parent in parents} | {child: nodes[child] for parent in parents for child in edges[parent]}
-    new_edges = {parent: edges[parent] for parent in parents}
+
+    # Resetting numbering
+    new_nodes = {}
+    new_edges = {}
+    all_nodes = set([parent for parent in parents] + [child for parent in parents for child in edges[parent]])
+    mapping = {node: i for i, node in enumerate(sorted(list(all_nodes)))}
+    for old_id, new_id in mapping.items():
+        node = nodes[old_id]
+        node.id = new_id
+        new_nodes[new_id] = node
+        edge = edges[old_id]
+        new_edges[new_id] = [mapping[elem] for elem in edge]
+
     return new_nodes, new_edges
 
 
@@ -54,24 +68,30 @@ def unravel_graph(candidate_graph: CandidateGraph) -> tuple[nx.DiGraph, dict]:
     graph = nx.DiGraph()
     params = {}
 
-    # Add nodes
-    node_sizes = []
+    alpha_min, alpha_max = 0.3, 1.0
+    labels = {}
     node_alphas = []
-
+    node_colors = []
+    edge_alphas = []
     edge_colors = []
+
     for node in new_nodes.values():
-        graph.add_node(node.id)
-        node_sizes.append(node.probability)
+        graph.add_node(node.id, font_color='w' if node.best else 'k')
+        labels[node.id] = '[{}] P={:.2e}'.format(node.id, node.probability)
         node_alphas.append(node.probability)
+        node_colors.append('indigo' if node.best else 'black')
 
     for parent_id, children_ids in new_edges.items():
         for child_id in children_ids:
-            child = nodes[child_id]
+            child = new_nodes[child_id]
             graph.add_edge(parent_id, child_id)
-            edge_colors.append('green' if child.best else 'black')
+            edge_colors.append('indigo' if child.best else 'black')
+            edge_alphas.append(child.probability)
 
-    params['node_sizes'] = scale_params(node_sizes)
-    params['node_alphas'] = scale_params(node_alphas, 1.0, 0.3, float)
+    params['labels'] = labels
+    params['node_alphas'] = scale_params(node_alphas, alpha_max, alpha_min, float)
+    params['node_colors'] = node_colors
+    params['edge_alphas'] = scale_params(edge_alphas, alpha_max, alpha_min, float)
     params['edge_colors'] = edge_colors
     params['nodes'] = new_nodes
     params['edges'] = edges
