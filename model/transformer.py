@@ -1,5 +1,5 @@
 from typing import Optional
-from dataclasses import dataclass
+from collections import defaultdict
 
 import torch
 import torch.nn as nn
@@ -11,18 +11,10 @@ from model.encoder import EncoderBlock
 from model.decoder import DecoderInput
 from model.decoder import DecoderBlock
 from model.decoder import DecoderOutput
+from evaluation.beam_search_util import CandidateNode, CandidateGraph
 from data_processing.feature_extractor import FeatureExtractor
 from data_processing.tokenizer import Tokenizer
 from data_processing.image_transforms import ImageTransforms
-
-
-@dataclass
-class CandidateNode:
-    tokens: list[int]
-    probability: float
-    parent: Optional[object]
-    children: Optional[list[object]]
-    best: bool
 
 
 class CaptionTransformer(nn.Module):
@@ -120,56 +112,58 @@ class CaptionTransformer(nn.Module):
                 param.data.copy_(pretrained)
 
     @staticmethod
-    def find_top_best(probabilities: torch.Tensor, k: int, root_node: CandidateNode) -> list[CandidateNode]:
+    def find_top_best(probabilities: torch.Tensor, k: int, beam_width: int, root_node: CandidateNode, search_graph: CandidateGraph) -> list[CandidateNode]:
         children = []
         topk = torch.topk(probabilities, k)
-        for token_id, probability in zip(topk.indices.tolist(), topk.values.tolist()):
-            children.append(
-                CandidateNode(
-                    root_node.tokens + [token_id], root_node.probability * probability, root_node, None, False
-                )
+        for i, (token_id, probability) in enumerate(zip(topk.indices.tolist(), topk.values.tolist())):
+            child = CandidateNode(
+                root_node.id * beam_width + (i + 1),
+                root_node.tokens + [token_id],
+                root_node.probability * probability,
+                False
             )
-        root_node.children = children
+            search_graph.nodes[child.id] = child
+            search_graph.edges[root_node.id].append(child.id)
+            children.append(child)
         return children
 
     @torch.no_grad()
-    def generate_beam_search(self, image_path: str, beam_width: int) -> tuple[list[int], CandidateNode]:
+    def generate_beam_search(self, image_path: str, beam_width: int) -> tuple[list[int], CandidateGraph]:
         bos = self.tokenizer.encode_map[Tokenizer.start_token]
         eos = self.tokenizer.encode_map[Tokenizer.end_token]
 
         self.eval()
-
         image = self.image_transform.transform(self.image_transform.read_image(image_path).unsqueeze(0))
-        caption_start = self.start_caption
 
-        # Initial prediction
-        root_node = CandidateNode([bos], 1.0, None, None, True)
-        logits = self(image, caption_start)[:, :, -1]
-        predictions = F.softmax(logits, dim=-1).squeeze()
-        best_nodes = self.find_top_best(predictions, beam_width, root_node)
+        # Initialization
+        search_graph = CandidateGraph({}, defaultdict(list))
+        root_node = CandidateNode(0, [bos], 1.0, True)
+        search_graph.nodes[0] = root_node
+        best_nodes = [root_node]
 
         ready_captions = []
-        while beam_width > 0:
+        to_generate = beam_width
+        while to_generate > 0:
             all_best = []
             for candidate in best_nodes:
                 candidate.best = True
                 if candidate.tokens[-1] == eos or len(candidate.tokens) == self.tokenizer.max_length - 1:
                     ready_captions.append(candidate)
-                    beam_width -= 1
+                    to_generate -= 1
                     continue
                 caption = torch.tensor(candidate.tokens).unsqueeze(0)
                 logits = self(image, caption)[:, :, -1]
                 probabilities = F.softmax(logits, dim=-1).squeeze()
-                all_best.extend(self.find_top_best(probabilities, beam_width, candidate))
+                all_best.extend(self.find_top_best(probabilities, to_generate, beam_width, candidate, search_graph))
 
-            if beam_width > 0:
-                best_nodes = sorted(all_best, key=lambda x: x.probability, reverse=True)[:beam_width]
+            if to_generate > 0:
+                best_nodes = sorted(all_best, key=lambda x: x.probability, reverse=True)[:to_generate]
 
         best_candidate = max(ready_captions, key=lambda x: x.probability)
         tokens_to_return = best_candidate.tokens
 
         self.train()
-        return tokens_to_return, root_node
+        return tokens_to_return, search_graph
 
     @torch.no_grad()
     def generate(self, image_path: str, temperature: float = 0.5) -> list[int]:

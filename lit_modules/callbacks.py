@@ -29,14 +29,15 @@ class GenerateCaption(Callback):
         tensorboard = pl_module.logger.experiment
 
         # Visualizing root image with the generated caption
-        raw_caption, _ = pl_module.model.generate_beam_search(self.image_path, 3)
+        raw_caption, beam_history = pl_module.model.generate_beam_search(self.image_path, 3)
         generated_caption = pl_module.model.tokenizer.decode(raw_caption)
-        image = pl_module.model.image_transform.read_image(self.image_path).permute(1, 2, 0)
-        captioned_fig = plot_captioned_image(image, generated_caption)
-        tensorboard.add_figure("captioned_image", captioned_fig, trainer.current_epoch)
         print(generated_caption)
+        # image = pl_module.model.image_transform.read_image(self.image_path).permute(1, 2, 0)
+        # captioned_fig = plot_captioned_image(image, generated_caption)
+        # tensorboard.add_figure("captioned_image", captioned_fig, trainer.current_epoch)
+        # print(generated_caption)
 
-        # visualize_candidates_graph(root_node, self.tokenizer.decode)
+        visualize_candidates_graph(beam_history, pl_module.model.tokenizer.decode)
 
         # Refitting the model
         # dummy_caption = torch.tensor(raw_caption).unsqueeze(0)
