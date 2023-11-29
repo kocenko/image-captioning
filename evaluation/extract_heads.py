@@ -8,7 +8,10 @@ def extract_encoder_heads(model: CaptionTransformer) -> list[list[torch.Tensor]]
     """
 
     encoder_heads = [
-        [head.cpu().detach() for head in block.attention.attention_weights[0]] for block in model.encoder_blocks
+        [
+            head.cpu().detach() for head in block.self_attention.mha.attention_weights[0]
+        ]
+        for block in model.encoder_blocks
     ]
 
     return encoder_heads
@@ -19,7 +22,7 @@ def extract_decoder_heads(model: CaptionTransformer) -> list[torch.Tensor]:
     Expected output shape: list_of_heads[attention_weight_shape]
     """
 
-    decoder_heads = [head.cpu().detach() for head in model.decoder_blocks[-1].cross_attention.attention_weights[0]]
+    decoder_heads = [head.cpu().detach() for head in model.decoder_blocks[-1].cross_attention.mha.attention_weights[0]]
     return decoder_heads
 
 
