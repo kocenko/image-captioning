@@ -77,7 +77,7 @@ class GenerateCaption(Callback):
             dummy_image,
             raw_caption,
             aggregated_heads,
-            8,
+            10,
             self.image_embedding_size,
             pl_module.model.tokenizer.decode_map,
         )
