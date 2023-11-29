@@ -13,13 +13,13 @@ class Tokenizer:
         counter (counter): keeps track of tokens count
         encode_map (dict): dict used to map tokens to indices
         decode_map (dict): dict used to map indices to tokens
-        max_length (int): the maximum length of the caption (in tokens, including <start> and <end> tokens)
+        max_length (int): the maximum length of the caption (in tokens, including [start] and [end] tokens)
     """
 
     empty_token = ""
-    start_token = "<start>"
-    end_token = "<end>"
-    unknown_token = "<unknown>"
+    start_token = "[start]"
+    end_token = "[end]"
+    unknown_token = "[unknown]"
 
     base_tokens = [empty_token, start_token, end_token, unknown_token]
 
@@ -33,7 +33,7 @@ class Tokenizer:
 
         if max_sequence_size < len(max(captions, key=len).split(" ")):
             print(f"Given max_sequence_size might be too small, resulting in truncating the captions", file=sys.stderr)
-        assert max_sequence_size >= 2, "max_sequence_size should be at least 2, to fit <start> and <end> tokens"
+        assert max_sequence_size >= 2, "max_sequence_size should be at least 2, to fit [start] and [end] tokens"
 
         self.max_length: int = max_sequence_size
         self.word_list: list[str] = [Tokenizer.empty_token, Tokenizer.unknown_token]
@@ -60,7 +60,7 @@ class Tokenizer:
         - removing punctuation,
         - converting to lower letters,
         - truncating based on max_sequence_size,
-        - adding <start> and <end> tokens
+        - adding [start] and [end] tokens
 
         Args:
             line (str): string to standardize
@@ -80,7 +80,7 @@ class Tokenizer:
         """Method used to standardize captions and prepare word list and counter
 
         Word list is created based on the frequency of words across all captions.
-        Because the padding is performed with <empty> tokens we want to ensure its index remains 0.
+        Because the padding is performed with [empty] tokens we want to ensure its index remains 0.
         In order to achieve that, this token is excluded from the counter.
         """
 
@@ -111,7 +111,7 @@ class Tokenizer:
     def encode(self, line_to_encode: str, standardize: bool = True, pad: bool = True) -> list[int]:
         """Method used to encode the given string into the list of token indices.
 
-        The input should not start with <start> and end with <end>.
+        The input should not start with [start] and end with [end].
 
         Args:
             line_to_encode (str): string to encode
