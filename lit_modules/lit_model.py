@@ -8,13 +8,13 @@ from model.transformer import CaptionTransformer
 
 
 class ModelModule(LightningModule):
-    def __init__(self, config_file: str, model: CaptionTransformer, token_encode_map, learning_rate: float):
+    def __init__(self, config_file: str, model: CaptionTransformer, learning_rate: float):
         super().__init__()
         self.config_file = config_file
         self.model = model
-        self.encode_map = token_encode_map
+        self.encode_map = self.model.tokenizer.encode_map
         self.lr = learning_rate
-        self.save_hyperparameters(ignore=['model', 'token_encode_map'])
+        self.save_hyperparameters(ignore=['model'])
 
     def forward(self, image: torch.Tensor, caption: torch.Tensor) -> torch.Tensor:
         logits = self.model(image, caption)

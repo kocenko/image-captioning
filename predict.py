@@ -18,7 +18,6 @@ def predict():
         checkpoints_path,
         config_file=config_file,
         model=lit_model.model,
-        token_encode_map=lit_model.model.tokenizer.encode_map,
         learning_rate=params['learning_rate']
     )
 

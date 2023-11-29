@@ -60,7 +60,7 @@ def setup_model(config_file: str) -> tuple[ModelModule, DataModule, dict, str, l
     if pretrained_weights_path and not extractor:
         ct.load_weights(pretrained_weights_path)
 
-    lit_model = ModelModule(config_file, ct, hyperparameters["encode_map"], hyperparameters["learning_rate"])
+    lit_model = ModelModule(config_file, ct, hyperparameters["learning_rate"])
 
     early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
     caption_gen = GenerateCaption(sample_image, image_embedding_size, not feature_extractor)
