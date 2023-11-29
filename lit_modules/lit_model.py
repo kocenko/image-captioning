@@ -1,4 +1,5 @@
 import torch
+from torchtext.data.metrics import bleu_score
 from torch.optim import Adam
 from torch.nn.functional import cross_entropy
 from lightning import LightningModule
@@ -56,6 +57,18 @@ class ModelModule(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         image, caption_sample, caption_target = batch
+
+        # Calculating bleu score
+        reference = [self.model.tokenizer.decode(caption.tolist()).split()[:-1] for caption in caption_target]
+        hypothesis = [
+            self.model.tokenizer.decode(self.model.generate_beam_search(img.unsqueeze(0), 3)[0]).split()[1:-1]
+            for img in image
+        ]
+
+        for bleu_n in [1, 2, 3, 4]:
+            score = bleu_score(candidate_corpus=hypothesis, references_corpus=reference, max_n=bleu_n, weights=[0.25]*bleu_n)
+            self.log(f"bleu-{bleu_n}", score)
+
         logits = self(image, caption_sample)
 
         loss = self.loss_function(logits, caption_target)

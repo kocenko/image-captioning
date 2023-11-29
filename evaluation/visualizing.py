@@ -316,11 +316,10 @@ def visualize_candidates_graph(
     )
     nx.draw_networkx_labels(
         g,
-        pos_labels,
+        pos,
         ax=ax,
-        labels=params["labels"],
-        bbox=bbox_props,
-        font_size=8,
+        font_color='white',
+        font_size=15,
         verticalalignment="center_baseline",
         font_family="serif",
     )

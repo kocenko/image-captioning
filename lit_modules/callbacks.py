@@ -44,15 +44,16 @@ class GenerateCaption(Callback):
                         "|" + str(node_id),
                         pl_module.model.tokenizer.decode(node.tokens),
                         str(node.best),
-                        str(node.last) + "|",
+                        str(node.last),
+                        "{:.2e}".format(node.probability) + "|",
                     ]
                 )
                 for node_id, node in nodes.items()
             ]
         )
         node_table = f"""
-            | *node_id* | *caption* | *in_path* | *best* |
-            |-----------|-----------|-----------|--------|
+            | *node_id* | *caption* | *in_path* | *best* | *probability* |
+            |-----------|-----------|-----------|--------|---------------|
             {node_info}
         """
         table = "\n".join(l.strip() for l in node_table.splitlines())

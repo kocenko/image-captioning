@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 from collections import defaultdict
 
 import torch
@@ -134,12 +134,13 @@ class CaptionTransformer(nn.Module):
         return children
 
     @torch.no_grad()
-    def generate_beam_search(self, image_path: str, beam_width: int) -> tuple[list[int], CandidateGraph]:
+    def generate_beam_search(self, image: Union[str, torch.Tensor], beam_width: int) -> tuple[list[int], CandidateGraph]:
         bos = self.tokenizer.encode_map[Tokenizer.start_token]
         eos = self.tokenizer.encode_map[Tokenizer.end_token]
 
         self.eval()
-        image = self.image_transform.transform(self.image_transform.read_image(image_path).unsqueeze(0))
+        if type(image) is str:
+            image = self.image_transform.transform(self.image_transform.read_image(image).unsqueeze(0))
 
         # Initialization
         search_graph = CandidateGraph({}, defaultdict(list))
@@ -175,11 +176,11 @@ class CaptionTransformer(nn.Module):
         return tokens_to_return, search_graph
 
     @torch.no_grad()
-    def generate(self, image_path: str, temperature: float = 0.5) -> list[int]:
+    def generate(self, image: Union[str, torch.Tensor], temperature: float = 0.5) -> list[int]:
         """Method used to generate a caption
 
         Args:
-            image_path (str): path to the image to generate the caption for
+            image (str): path to the image to generate the caption for
             temperature (float): scaling model's output to achieve different results
 
         Returns:
@@ -189,7 +190,8 @@ class CaptionTransformer(nn.Module):
         self.eval()
 
         generated_caption = self.start_caption
-        image = self.image_transform.transform(self.image_transform.read_image(image_path).unsqueeze(0))
+        if type(image) is str:
+            image = self.image_transform.transform(self.image_transform.read_image(image).unsqueeze(0))
 
         for _ in range(self.tokenizer.max_length - 1):
             logits = self(image, generated_caption)
