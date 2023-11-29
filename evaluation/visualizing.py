@@ -10,6 +10,8 @@ import networkx as nx
 from model.transformer import CandidateGraph, CandidateNode
 from evaluation.beam_search_util import unravel_graph
 
+CMAP_COLOR = "Greens"
+
 
 def plot_numpy_logs(name: str, folder: str = "../numpy_logs", batch_num: int = 0) -> None:
     """Used to display 3d and 4d tensors saved as numpy arrays
@@ -232,7 +234,7 @@ def plot_self_attention(
             attention = attention_weights[layer_id][head_id][attend_patch].reshape(patches_per_axis, patches_per_axis)
             attention = attention.detach().cpu().numpy()
             attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
-            ax.imshow(attention, alpha=0.5, cmap="gray", interpolation="bilinear")
+            ax.imshow(attention, alpha=0.4, cmap=CMAP_COLOR, interpolation="bilinear")
     fig.tight_layout()
     if show:
         plt.show()
@@ -271,7 +273,7 @@ def plot_cross_attention(
                 attention = attention_weights[token_i].reshape(patches_per_axis, patches_per_axis)
                 attention = attention.detach().cpu().numpy()
                 attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
-                ax.imshow(attention, alpha=0.5, cmap="gray", interpolation="bilinear")
+                ax.imshow(attention, alpha=0.4, cmap=CMAP_COLOR, interpolation="bilinear")
             else:
                 ax.axis("off")
     fig.tight_layout()
@@ -281,22 +283,51 @@ def plot_cross_attention(
     return fig
 
 
-def visualize_candidates_graph(graph: CandidateGraph, show: bool = False) -> tuple[plt.Figure, dict[int, CandidateNode]]:
+def visualize_candidates_graph(
+    graph: CandidateGraph, show: bool = False
+) -> tuple[plt.Figure, dict[int, CandidateNode]]:
     g, params = unravel_graph(graph)
 
     bbox_props = dict(boxstyle="round", fc="w")
     pos = nx.drawing.nx_agraph.graphviz_layout(g, prog="dot", args="-Grankdir=LR")
-    pos_labels = {key: (x, y-20) for key, (x, y) in pos.items()}
+    pos_labels = {key: (x, y - 20) for key, (x, y) in pos.items()}
 
     fig, ax = plt.subplots(figsize=(20, 20))
-    nx.draw_networkx_edges(g, pos, ax=ax, edge_color=params['edge_colors'], arrows=True, width=4, alpha=params['edge_alphas'])
-    nx.draw_networkx_nodes(g, pos, ax=ax, node_size=1000, node_shape='o', alpha=params['node_alphas'], node_color=params['node_colors'], edgecolors=params['node_outline_colors'])
-    nx.draw_networkx_labels(g, pos_labels, ax=ax, labels=params['labels'], bbox=bbox_props, font_size=8, verticalalignment='center_baseline', font_family='serif')
-    ax.axis('off')
+    nx.draw_networkx_edges(
+        g,
+        pos,
+        ax=ax,
+        edge_color=params["edge_colors"],
+        arrows=True,
+        width=4,
+        alpha=params["edge_alphas"],
+        style=params["edge_styles"],
+    )
+    nx.draw_networkx_nodes(
+        g,
+        pos,
+        ax=ax,
+        node_size=1000,
+        node_shape="o",
+        alpha=params["node_alphas"],
+        node_color=params["node_colors"],
+        edgecolors=params["node_outline_colors"],
+        linewidths=params["node_outline_width"],
+    )
+    nx.draw_networkx_labels(
+        g,
+        pos_labels,
+        ax=ax,
+        labels=params["labels"],
+        bbox=bbox_props,
+        font_size=8,
+        verticalalignment="center_baseline",
+        font_family="serif",
+    )
+    ax.axis("off")
     plt.tight_layout()
 
     if show:
         plt.show()
 
-    return fig, params['nodes']
-
+    return fig, params["nodes"]

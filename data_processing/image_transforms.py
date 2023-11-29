@@ -10,7 +10,7 @@ class ImageTransforms:
     def __init__(self, image_size: int, model_name: Optional[str] = None):
         self.mean = [0.485, 0.456, 0.406]
         self.std = [0.229, 0.224, 0.225]
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         if model_name:
             self.transformations = PRETRAINED_MODELS[model_name]["weights"].transforms(

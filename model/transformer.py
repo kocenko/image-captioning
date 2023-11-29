@@ -18,7 +18,13 @@ from data_processing.image_transforms import ImageTransforms
 
 
 class CaptionTransformer(nn.Module):
-    def __init__(self, tokenizer: Tokenizer, image_transform: ImageTransforms, feature_extractor: Optional[FeatureExtractor] = None, **config):
+    def __init__(
+        self,
+        tokenizer: Tokenizer,
+        image_transform: ImageTransforms,
+        feature_extractor: Optional[FeatureExtractor] = None,
+        **config
+    ):
         super().__init__()
         self.tokenizer = tokenizer
         counter = self.tokenizer.counter
@@ -55,8 +61,7 @@ class CaptionTransformer(nn.Module):
         )
         self.output_layer = DecoderOutput(embeddings, vocabulary_size, True, counter, encode_map, banned_tokens)
         self.register_buffer(
-            'start_caption',
-            torch.tensor([encode_map[Tokenizer.start_token]]).unsqueeze(0), persistent=False
+            "start_caption", torch.tensor([encode_map[Tokenizer.start_token]]).unsqueeze(0), persistent=False
         )
 
     @staticmethod
@@ -83,11 +88,11 @@ class CaptionTransformer(nn.Module):
         return predictions
 
     def load_weights(self, path_to_weights: str) -> None:
-        with open('configs/custom_encoder_weights_names.txt', 'r') as f:
+        with open("configs/custom_encoder_weights_names.txt", "r") as f:
             custom_names = f.read()
             custom_names = custom_names.splitlines()
 
-        with open('configs/vit_encoder_weights_names.txt', 'r') as f:
+        with open("configs/vit_encoder_weights_names.txt", "r") as f:
             vit_names = f.read()
             vit_names = vit_names.splitlines()
 
@@ -97,22 +102,22 @@ class CaptionTransformer(nn.Module):
             vit_weights = torch.load(path_to_weights)
 
             matching_params = [
-                (self_name, self_param)
-                for self_name, self_param in self.named_parameters()
-                if self_name in mappings
+                (self_name, self_param) for self_name, self_param in self.named_parameters() if self_name in mappings
             ]
 
             for name, param in matching_params:
                 pretrained = vit_weights[mappings[name]]
 
                 # A hack used to remove 'cls' token from positional embedding
-                if name == 'encoder_input.positional_embedding.weight':
+                if name == "encoder_input.positional_embedding.weight":
                     pretrained = pretrained[:, 1:, :].reshape(param.shape)
 
                 param.data.copy_(pretrained)
 
     @staticmethod
-    def find_top_best(probabilities: torch.Tensor, k: int, beam_width: int, root_node: CandidateNode, search_graph: CandidateGraph) -> list[CandidateNode]:
+    def find_top_best(
+        probabilities: torch.Tensor, k: int, beam_width: int, root_node: CandidateNode, search_graph: CandidateGraph
+    ) -> list[CandidateNode]:
         children = []
         topk = torch.topk(probabilities, k)
         for i, (token_id, probability) in enumerate(zip(topk.indices.tolist(), topk.values.tolist())):
@@ -152,14 +157,16 @@ class CaptionTransformer(nn.Module):
                     candidate.last = True
                     ready_captions.append(candidate)
                     to_generate -= 1
-                    continue
-                caption = torch.tensor(candidate.tokens, device='cuda' if image.get_device() != -1 else 'cpu').unsqueeze(0)
+
+            for candidate in [node for node in best_nodes if node not in ready_captions]:
+                caption = torch.tensor(
+                    candidate.tokens, device="cuda" if image.get_device() != -1 else "cpu"
+                ).unsqueeze(0)
                 logits = self(image, caption)[:, :, -1]
                 probabilities = F.softmax(logits, dim=-1).squeeze()
                 all_best.extend(self.find_top_best(probabilities, to_generate, beam_width, candidate, search_graph))
 
-            if to_generate > 0:
-                best_nodes = sorted(all_best, key=lambda x: x.probability, reverse=True)[:to_generate]
+            best_nodes = sorted(all_best, key=lambda x: x.probability, reverse=True)[:to_generate]
 
         best_candidate = max(ready_captions, key=lambda x: x.probability)
         tokens_to_return = best_candidate.tokens

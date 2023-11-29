@@ -36,19 +36,27 @@ class GenerateCaption(Callback):
 
         # Visualizing beam search graph
         graph_fig, nodes = visualize_candidates_graph(beam_history)
-        graph_fig.savefig(os.path.join(trainer.log_dir, f'{trainer.current_epoch}_beam_search_graph.pdf'))
-        node_info = '\n'.join(['|'.join(['|' + str(node_id), pl_module.model.tokenizer.decode(node.tokens), str(node.best), str(node.last) + '|']) for node_id, node in nodes.items()])
-        node_table = f'''
+        graph_fig.savefig(os.path.join(trainer.log_dir, f"{trainer.current_epoch}_beam_search_graph.pdf"))
+        node_info = "\n".join(
+            [
+                "|".join(
+                    [
+                        "|" + str(node_id),
+                        pl_module.model.tokenizer.decode(node.tokens),
+                        str(node.best),
+                        str(node.last) + "|",
+                    ]
+                )
+                for node_id, node in nodes.items()
+            ]
+        )
+        node_table = f"""
             | *node_id* | *caption* | *in_path* | *best* |
             |-----------|-----------|-----------|--------|
             {node_info}
-        '''
-        table = '\n'.join(l.strip() for l in node_table.splitlines())
-        tensorboard.add_text(
-            'beam_search_labels',
-            table,
-            trainer.current_epoch
-        )
+        """
+        table = "\n".join(l.strip() for l in node_table.splitlines())
+        tensorboard.add_text("beam_search_labels", table, trainer.current_epoch)
 
         # Refitting the model to set the attention weights
         dummy_caption = torch.tensor(raw_caption, device=pl_module.device).unsqueeze(0)
@@ -66,6 +74,11 @@ class GenerateCaption(Callback):
         decoder_heads = extract_decoder_heads(pl_module.model)
         aggregated_heads = aggregate_heads(decoder_heads, method="sum")
         cross_att_fig = plot_cross_attention(
-            dummy_image, raw_caption, aggregated_heads, 8, self.image_embedding_size, pl_module.model.tokenizer.decode_map
+            dummy_image,
+            raw_caption,
+            aggregated_heads,
+            8,
+            self.image_embedding_size,
+            pl_module.model.tokenizer.decode_map,
         )
         tensorboard.add_figure("cross_attention", cross_att_fig, trainer.current_epoch)
