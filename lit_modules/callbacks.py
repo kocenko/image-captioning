@@ -23,7 +23,7 @@ class GenerateCaption(Callback):
         self.image_embedding_size = image_embedding_size
         self.show_self_attention = show_self_attention
 
-    def on_train_epoch_start(self, trainer, pl_module) -> None:
+    def on_train_epoch_end(self, trainer, pl_module) -> None:
         tensorboard = pl_module.logger.experiment
 
         # Visualizing root image with the generated caption
