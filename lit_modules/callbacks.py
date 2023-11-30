@@ -1,6 +1,7 @@
 import os
 import torch
 from lightning.pytorch.callbacks import Callback
+import matplotlib.pyplot as plt
 
 from evaluation.extract_heads import aggregate_heads, extract_decoder_heads, extract_encoder_heads
 from evaluation.visualizing import (
@@ -32,11 +33,13 @@ class GenerateCaption(Callback):
         image = pl_module.model.image_transform.read_image(self.image_path).detach().cpu().permute(1, 2, 0)
         captioned_fig = plot_captioned_image(image, generated_caption)
         tensorboard.add_figure("captioned_image", captioned_fig, trainer.current_epoch)
+        plt.close(captioned_fig)
         print(generated_caption)
 
         # Visualizing beam search graph
         graph_fig, nodes = visualize_candidates_graph(beam_history)
         graph_fig.savefig(os.path.join(trainer.log_dir, f"{trainer.current_epoch}_beam_search_graph.pdf"))
+        plt.close(graph_fig)
         node_info = "\n".join(
             [
                 "|".join(
@@ -71,6 +74,7 @@ class GenerateCaption(Callback):
             encoder_heads = extract_encoder_heads(pl_module.model)
             self_att_fig = plot_self_attention(dummy_image, encoder_heads, 3, 4, self.image_embedding_size)
             tensorboard.add_figure("self_attention", self_att_fig, trainer.current_epoch)
+            plt.close(self_att_fig)
 
         decoder_heads = extract_decoder_heads(pl_module.model)
         aggregated_heads = aggregate_heads(decoder_heads, method="sum")
@@ -83,3 +87,5 @@ class GenerateCaption(Callback):
             pl_module.model.tokenizer.decode_map,
         )
         tensorboard.add_figure("cross_attention", cross_att_fig, trainer.current_epoch)
+        plt.close(cross_att_fig)
+
