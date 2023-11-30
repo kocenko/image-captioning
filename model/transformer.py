@@ -51,6 +51,7 @@ class CaptionTransformer(nn.Module):
             self.encoder_blocks = nn.Sequential(
                 *[EncoderBlock(embeddings, dropout_rate, heads_num, patches_num) for _ in range(encoder_layers)]
             )
+        self.encoder_frozen = False
 
         self.decoder_input = DecoderInput(vocabulary_size, max_caption_length, embeddings)
         self.decoder_blocks = nn.ModuleList(
@@ -73,6 +74,9 @@ class CaptionTransformer(nn.Module):
         padding_mask = self.get_padding_mask(caption)
         x = self.decoder_input(caption, padding_mask)
 
+        if self.encoder_frozen:
+            self.eval()
+
         if not self.feature_extractor:
             image = self.encoder_input(image)
             image = self.encoder_blocks(image)
@@ -80,6 +84,9 @@ class CaptionTransformer(nn.Module):
             image = self.feature_extractor.feed(image)
             image = torch.flatten(image, start_dim=2)
             image = image.permute(0, 2, 1)
+
+        if self.encoder_frozen:
+            self.train()
 
         for block in self.decoder_blocks:
             x = block(image, x, padding_mask)
@@ -119,6 +126,7 @@ class CaptionTransformer(nn.Module):
             params_to_freeze = list(self.encoder_input.parameters()) + list(self.encoder_blocks.parameters())
             for param in params_to_freeze:
                 param.requires_grad = False
+            self.encoder_frozen = True
 
     @staticmethod
     def find_top_best(
