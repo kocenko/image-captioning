@@ -59,6 +59,7 @@ def setup_model(config_file: str) -> tuple[ModelModule, DataModule, dict, str, l
 
     if pretrained_weights_path and not extractor:
         ct.load_weights(pretrained_weights_path)
+        ct.freeze_encoder()
 
     lit_model = ModelModule(config_file, ct, hyperparameters["learning_rate"])
 

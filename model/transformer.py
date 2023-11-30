@@ -114,6 +114,12 @@ class CaptionTransformer(nn.Module):
 
                 param.data.copy_(pretrained)
 
+    def freeze_encoder(self):
+        if not self.feature_extractor:
+            params_to_freeze = list(self.encoder_input.parameters()) + list(self.encoder_blocks.parameters())
+            for param in params_to_freeze:
+                param.requires_grad = False
+
     @staticmethod
     def find_top_best(
         probabilities: torch.Tensor, k: int, beam_width: int, root_node: CandidateNode, search_graph: CandidateGraph
