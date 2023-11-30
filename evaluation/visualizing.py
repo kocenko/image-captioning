@@ -319,7 +319,7 @@ def visualize_candidates_graph(
         pos,
         ax=ax,
         font_color="white",
-        font_size=15,
+        font_size=17,
         verticalalignment="center_baseline",
         font_family="serif",
     )
