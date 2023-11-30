@@ -65,11 +65,11 @@ class ModelModule(LightningModule):
             for img in image
         ]
 
-        for bleu_n in [1, 2, 3, 4]:
-            score = bleu_score(
-                candidate_corpus=hypothesis, references_corpus=reference, max_n=bleu_n, weights=[0.25] * bleu_n
-            )
-            self.log(f"bleu-{bleu_n}", score)
+        # for bleu_n in [1, 2, 3, 4]:
+        #     score = bleu_score(
+        #         candidate_corpus=hypothesis, references_corpus=reference, max_n=bleu_n, weights=[0.25] * bleu_n
+        #     )
+        #     self.log(f"bleu-{bleu_n}", score)
 
         logits = self(image, caption_sample)
 
