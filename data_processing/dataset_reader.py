@@ -102,6 +102,7 @@ def load_vizwiz(
             if image["file_name"] in existing_images
             for annotation in annotations["annotations"]
             if annotation["image_id"] == image["id"]
+            and annotation["caption"] != "Quality issues are too severe to recognize visual content."
         ]
 
     return dataset[train_images_path], dataset[valid_images_path], dataset[valid_images_path]
