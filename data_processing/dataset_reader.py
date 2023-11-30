@@ -1,6 +1,8 @@
+from collections import defaultdict
 import os
 import random
 import tqdm
+import json
 
 
 def load_flickr8k(
@@ -75,3 +77,31 @@ def load_flickr30k(
         start += size
 
     return groups[0], groups[1], groups[2]
+
+
+def load_vizwiz(
+    train_images_path: str,
+    valid_images_path: str,
+    train_annotations: str,
+    valid_annotations: str,
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]], list[tuple[str, str]]]:
+    print("Loading VizWiz dataset")
+
+    dataset = defaultdict()
+
+    images_paths = [train_images_path, valid_images_path]
+    annotations_paths = [train_annotations, valid_annotations]
+    for images_folder, annotations_path in zip(images_paths, annotations_paths):
+        existing_images = os.listdir(images_folder)
+        with open(annotations_path) as f:
+            annotations = json.load(f)
+
+        dataset[images_folder] = [
+            (os.path.join(images_folder, image["file_name"]), annotation["caption"])
+            for image in tqdm.tqdm(annotations["images"])
+            if image["file_name"] in existing_images
+            for annotation in annotations["annotations"]
+            if annotation["image_id"] == image["id"]
+        ]
+
+    return dataset[train_images_path], dataset[valid_images_path], dataset[valid_images_path]

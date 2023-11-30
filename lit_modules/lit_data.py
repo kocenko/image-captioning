@@ -5,14 +5,14 @@ from torch.utils.data import DataLoader
 
 from data_processing.custom_dataset import ImageCaptionDataset
 from data_processing.tokenizer import Tokenizer
-from data_processing.image_transforms import ImageTransforms
-from data_processing.dataset_reader import load_flickr8k, load_flickr30k
+from data_processing.dataset_reader import load_flickr8k, load_flickr30k, load_vizwiz
 
 
 class DataModule(LightningDataModule):
     DATA_READER_MAP = {
         "flickr8k": load_flickr8k,
         "flickr30k": load_flickr30k,
+        "vizwiz": load_vizwiz,
     }
 
     def __init__(
@@ -26,7 +26,11 @@ class DataModule(LightningDataModule):
     ):
         super().__init__()
 
-        assert dataset_name in ["flickr8k", "flickr30k"], f"Dataset of given name {dataset_name} was not implemented"
+        assert dataset_name in [
+            "flickr8k",
+            "flickr30k",
+            "vizwiz",
+        ], f"Dataset of given name {dataset_name} was not implemented"
         self.raw_datasets = DataModule.DATA_READER_MAP[dataset_name](**dataset_paths)
         self.tokenizer = Tokenizer([caption for _, caption in self.raw_datasets[0]], max_sequence_size, vocabulary_size)
         self.transform = image_transform

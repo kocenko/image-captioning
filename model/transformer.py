@@ -134,7 +134,9 @@ class CaptionTransformer(nn.Module):
         return children
 
     @torch.no_grad()
-    def generate_beam_search(self, image: Union[str, torch.Tensor], beam_width: int) -> tuple[list[int], CandidateGraph]:
+    def generate_beam_search(
+        self, image: Union[str, torch.Tensor], beam_width: int
+    ) -> tuple[list[int], CandidateGraph]:
         bos = self.tokenizer.encode_map[Tokenizer.start_token]
         eos = self.tokenizer.encode_map[Tokenizer.end_token]
 

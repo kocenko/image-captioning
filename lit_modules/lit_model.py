@@ -15,7 +15,7 @@ class ModelModule(LightningModule):
         self.model = model
         self.encode_map = self.model.tokenizer.encode_map
         self.lr = learning_rate
-        self.save_hyperparameters(ignore=['model'])
+        self.save_hyperparameters(ignore=["model"])
 
     def forward(self, image: torch.Tensor, caption: torch.Tensor) -> torch.Tensor:
         logits = self.model(image, caption)
@@ -66,7 +66,9 @@ class ModelModule(LightningModule):
         ]
 
         for bleu_n in [1, 2, 3, 4]:
-            score = bleu_score(candidate_corpus=hypothesis, references_corpus=reference, max_n=bleu_n, weights=[0.25]*bleu_n)
+            score = bleu_score(
+                candidate_corpus=hypothesis, references_corpus=reference, max_n=bleu_n, weights=[0.25] * bleu_n
+            )
             self.log(f"bleu-{bleu_n}", score)
 
         logits = self(image, caption_sample)
