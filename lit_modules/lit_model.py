@@ -59,12 +59,11 @@ class ModelModule(LightningModule):
         image, caption_sample, caption_target = batch
 
         # Calculating bleu score
-        reference = [self.model.tokenizer.decode(caption.tolist()).split()[:-1] for caption in caption_target]
-        hypothesis = [
-            self.model.tokenizer.decode(self.model.generate_beam_search(img.unsqueeze(0), 3)[0]).split()[1:-1]
-            for img in image
-        ]
-
+        # reference = [self.model.tokenizer.decode(caption.tolist()).split()[:-1] for caption in caption_target]
+        # hypothesis = [
+        #     self.model.tokenizer.decode(self.model.generate_beam_search(img.unsqueeze(0), 3)[0]).split()[1:-1]
+        #     for img in image
+        # ]
         # for bleu_n in [1, 2, 3, 4]:
         #     score = bleu_score(
         #         candidate_corpus=hypothesis, references_corpus=reference, max_n=bleu_n, weights=[0.25] * bleu_n
