@@ -9,15 +9,16 @@ hyperparameters:
   banned_tokens: ["[unknown]", "[start]", ""]
   embeddings: 256
   dropout_rate: 0.5
-  patch_size: 16
   image_size: 224
-  shift_pixels: 5
-  encoder_layers: 2
   decoder_layers: 2
   learning_rate: 0.0001
-  epochs: 100
+  epochs: 200
   heads_num: 2
   eval_iterations: 20
   steps_per_epoch: 100
-sample_image: "./evaluation/sample_images/surfing.jpg"
+sample_image: "./evaluation/sample_images/pills.jpg"
 checkpoints_folder: "./checkpoints"
+feature_extractor: "mobilenet"
+layer_name: "features.12"
+feature_maps_dim: 576
+feature_maps_size: 7
