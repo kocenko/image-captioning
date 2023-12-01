@@ -115,6 +115,7 @@ class DecoderOutput(nn.Module):
 
             bias = log_counts
             bias[counts_list == 0] = -1e9  # Masking banned or non-appearing tokens
+            bias[counts_list != 0] = 0  # HACK TO REMOVE BIAS AND KEEP BANNED TOKENS MASKING
             bias = torch.tensor(bias)
 
         self.register_buffer("bias", bias, persistent=False)
