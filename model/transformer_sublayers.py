@@ -14,7 +14,6 @@ class LocalitySelfAttention(nn.Module):
             embeddings_number=embeddings,
             heads_number=heads_num,
             dropout_rate=dropout_rate,
-            trainable_scale=True,
         )
         self.layer_norm_before = nn.LayerNorm(embeddings)
         self.layer_norm_after = nn.LayerNorm(embeddings)

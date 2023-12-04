@@ -42,6 +42,6 @@ class EncoderBlock(nn.Module):
         self.register_buffer("diagonal_mask", torch.eye(patches_num) == 1, persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.self_attention(x, self.diagonal_mask)
+        x = self.self_attention(x)
         x = self.feed_forward(x)
         return x
