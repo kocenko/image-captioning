@@ -38,7 +38,8 @@ class CaptionTransformer(nn.Module):
         heads_num = config["heads_num"]
         image_size = config["image_size"]
         decoder_layers = config["decoder_layers"]
-        cross_attention_key_dim = config["cross_att_key_dim"]
+        encoder_embeddings = config["encoder_embeddings"]
+        encoder_heads_num = config.get("encoder_heads_num", heads_num)
 
         self.image_transform = image_transform
         self.feature_extractor = feature_extractor
@@ -47,16 +48,19 @@ class CaptionTransformer(nn.Module):
             shift_pixels = config["shift_pixels"]
             encoder_layers = config["encoder_layers"]
             patches_num = (image_size // patch_size) ** 2
-            self.encoder_input = EncoderInput(image_size, shift_pixels, patch_size, embeddings)
+            self.encoder_input = EncoderInput(image_size, shift_pixels, patch_size, encoder_embeddings)
             self.encoder_blocks = nn.Sequential(
-                *[EncoderBlock(embeddings, dropout_rate, heads_num, patches_num) for _ in range(encoder_layers)]
+                *[
+                    EncoderBlock(encoder_embeddings, dropout_rate, encoder_heads_num, patches_num)
+                    for _ in range(encoder_layers)
+                ]
             )
         self.encoder_frozen = False
 
         self.decoder_input = DecoderInput(vocabulary_size, max_caption_length, embeddings)
         self.decoder_blocks = nn.ModuleList(
             [
-                DecoderBlock(embeddings, cross_attention_key_dim, dropout_rate, heads_num, max_caption_length)
+                DecoderBlock(embeddings, encoder_embeddings, dropout_rate, heads_num, max_caption_length)
                 for _ in range(decoder_layers)
             ]
         )

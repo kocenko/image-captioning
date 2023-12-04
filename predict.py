@@ -1,17 +1,27 @@
+import argparse
+import yaml
 import torch
 from setup_model import setup_model
 from lit_modules.lit_model import ModelModule
 
 
-def predict():
-    checkpoints_path = "checkpoints/lightning_logs/version_5/checkpoints/epoch=0-step=100.ckpt"
-    config_file_path = "configs/mobilenet_small_flickr8k_bikes_homepc.yaml"
-    sample_image = "evaluation/sample_images/surfing.jpg"
-    lit_model, lit_data_module, hyperparameters, checkpoints_folder, callbacks = setup_model(config_file_path)
+def predict(model: str, dataset: str):
+    with open("configs/config.yaml", "r") as file:
+        config = yaml.safe_load(file)
+
+    dataset_name = config["dataset"]["name"]
+    feature_extractor = config["model"].get("feature_extractor", "patching")
+    checkpoints_path = "../checkpoints/lightning_logs/version_0/checkpoints/epoch=96-step=9700.ckpt"
+    sample_image = "../ducky.jpg"
+    lit_model, lit_data_module, hyperparameters, callbacks = setup_model(
+        config["model"][model], config["dataset"][dataset], config["sample_images"]
+    )
 
     checkpoint = torch.load(checkpoints_path, map_location=lambda storage, loc: storage)
     params = checkpoint["hyper_parameters"]
-    if (config_file := params.get("config_file", None)) is not None and config_file != config_file_path:
+    if (
+        config_file := params.get("config_name", None)
+    ) is not None and config_file != f"{feature_extractor} - {dataset_name}":
         raise Exception(f"Expected {config_file}")
 
     model = ModelModule.load_from_checkpoint(
@@ -24,4 +34,8 @@ def predict():
 
 
 if __name__ == "__main__":
-    predict()
+    parser = argparse.ArgumentParser(prog="ImageCaptioning-Predict")
+    parser.add_argument("-m", "--model", required=True, choices=["patching", "vgg", "mobilenet"])
+    parser.add_argument("-d", "--dataset", required=True, choices=["vizwiz", "flickr8k", "flickr30k"])
+    args = parser.parse_args()
+    predict(args.model, args.dataset)

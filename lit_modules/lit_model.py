@@ -9,9 +9,9 @@ from model.transformer import CaptionTransformer
 
 
 class ModelModule(LightningModule):
-    def __init__(self, config_file: str, model: CaptionTransformer, learning_rate: float):
+    def __init__(self, config_name: str, model: CaptionTransformer, learning_rate: float):
         super().__init__()
-        self.config_file = config_file
+        self.config_name = config_name
         self.model = model
         self.encode_map = self.model.tokenizer.encode_map
         self.lr = learning_rate
@@ -59,16 +59,13 @@ class ModelModule(LightningModule):
         image, caption_sample, caption_target = batch
 
         # Calculating bleu score
-        # reference = [self.model.tokenizer.decode(caption.tolist()).split()[:-1] for caption in caption_target]
-        # hypothesis = [
-        #     self.model.tokenizer.decode(self.model.generate_beam_search(img.unsqueeze(0), 3)[0]).split()[1:-1]
-        #     for img in image
-        # ]
-        # for bleu_n in [1, 2, 3, 4]:
-        #     score = bleu_score(
-        #         candidate_corpus=hypothesis, references_corpus=reference, max_n=bleu_n, weights=[0.25] * bleu_n
-        #     )
-        #     self.log(f"bleu-{bleu_n}", score)
+        reference = [self.model.tokenizer.decode(caption.tolist()).split()[:-1] for caption in caption_target[:5]]
+        hypothesis = [
+            self.model.tokenizer.decode(self.model.generate_beam_search(img.unsqueeze(0), 3)[0]).split()[1:-1]
+            for img in image[:5]
+        ]
+        score = bleu_score(candidate_corpus=hypothesis, references_corpus=reference)
+        self.log("BLEU-4", score)
 
         logits = self(image, caption_sample)
 

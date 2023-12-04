@@ -1,6 +1,5 @@
 from typing import Any
 import torch.cuda
-import yaml
 
 from lightning.pytorch.callbacks import EarlyStopping
 
@@ -12,24 +11,21 @@ from data_processing.image_transforms import ImageTransforms
 from data_processing.feature_extractor import FeatureExtractor
 
 
-def setup_model(config_file: str) -> tuple[ModelModule, DataModule, dict, str, list[Any]]:
-    with open(config_file, "r") as file:
-        config = yaml.safe_load(file)
+def setup_model(
+    model_config: dict, dataset_config: dict, sample_images: list[str]
+) -> tuple[ModelModule, DataModule, dict, list[Any]]:
+    dataset_name = dataset_config["name"]
+    dataset_paths = dataset_config["dataset_paths"]
 
-    dataset_name = config["dataset_name"]
-    dataset_paths = config["dataset_paths"]
-    hyperparameters = config["hyperparameters"]
-    sample_image = config["sample_image"]
-    checkpoints_folder = config["checkpoints_folder"]
-    pretrained_weights_path = config.get("pretrained_weights_path", False)
-    feature_extractor = config.get("feature_extractor", False)
-    slice_layer_name = config.get("layer_name", None)
-    hyperparameters["cross_att_key_dim"] = config.get("feature_maps_dim", hyperparameters["embeddings"])
-    image_embedding_size = config.get("feature_maps_size", 14)  # For image_size: 224, patch_size: 16
+    hyperparameters = model_config["hyperparameters"]
+    image_embedding_size = hyperparameters["encoder_sequence_size"]
+    pretrained_weights_path = model_config.get("pretrained_weights_path", False)
+    feature_extractor = model_config.get("feature_extractor", "patching")
+    slice_layer_name = model_config.get("layer_name", None)
 
     # Setting up image transformations
     extractor = None
-    if feature_extractor:
+    if feature_extractor != "patching":
         image_transform = ImageTransforms(hyperparameters["image_size"], feature_extractor)
         extractor = FeatureExtractor(feature_extractor, image_transform)
         extractor.slice_net(slice_layer_name, overwrite_model=True)
@@ -48,10 +44,6 @@ def setup_model(config_file: str) -> tuple[ModelModule, DataModule, dict, str, l
         hyperparameters["batches"],
     )
 
-    # Updating dependent hyperparameters
-    hyperparameters["counter"] = lit_data_module.tokenizer.counter
-    hyperparameters["encode_map"] = lit_data_module.tokenizer.encode_map
-
     if not extractor:
         ct = CaptionTransformer(lit_data_module.tokenizer, image_transform, **hyperparameters)
     else:
@@ -61,10 +53,10 @@ def setup_model(config_file: str) -> tuple[ModelModule, DataModule, dict, str, l
         ct.load_weights(pretrained_weights_path)
         ct.freeze_encoder()
 
-    lit_model = ModelModule(config_file, ct, hyperparameters["learning_rate"])
+    lit_model = ModelModule(f"{feature_extractor} - {dataset_name}", ct, hyperparameters["learning_rate"])
 
     early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
-    caption_gen = GenerateCaption(sample_image, image_embedding_size, not feature_extractor)
+    caption_gen = GenerateCaption(sample_images, image_embedding_size, feature_extractor == "patching")
     callbacks = [early_stopping, caption_gen]
 
-    return lit_model, lit_data_module, hyperparameters, checkpoints_folder, callbacks
+    return lit_model, lit_data_module, hyperparameters, callbacks
