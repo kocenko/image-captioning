@@ -51,7 +51,7 @@ def setup_model(
 
     if pretrained_weights_path and not extractor:
         ct.load_weights(pretrained_weights_path)
-        ct.freeze_encoder()
+        # ct.freeze_encoder()
 
     lit_model = ModelModule(f"{feature_extractor} - {dataset_name}", ct, hyperparameters["learning_rate"])
 
