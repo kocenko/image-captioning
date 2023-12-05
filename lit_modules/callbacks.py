@@ -22,7 +22,7 @@ class GenerateCaption(Callback):
         self.image_paths = image_paths
         self.image_embedding_size = image_embedding_size
 
-    def on_train_epoch_start(self, trainer, pl_module) -> None:
+    def on_train_epoch_end(self, trainer, pl_module) -> None:
         tensorboard = pl_module.logger.experiment
 
         for i, image_path in enumerate(self.image_paths):
