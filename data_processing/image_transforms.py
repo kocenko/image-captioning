@@ -29,7 +29,7 @@ class ImageTransforms:
 
     def transform(self, image: torch.Tensor) -> Union[torch.Tensor, dict[str, torch.Tensor]]:
         if self.model_name == 'vit':
-            transformed = self.transformations(images=image, return_tensors='pt')['pixel_values']
+            transformed = self.transformations(images=image, return_tensors='pt')['pixel_values'].to(self.device)
             return transformed
         transformed = self.transformations(image).to(self.device)
         return transformed
