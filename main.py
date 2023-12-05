@@ -24,7 +24,7 @@ def main(model: str, dataset: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="ImageCaptioning")
-    parser.add_argument("-m", "--model", required=True, choices=["patching", "vgg", "mobilenet"])
+    parser.add_argument("-m", "--model", required=True, choices=["vit", "vgg", "mobilenet"])
     parser.add_argument("-d", "--dataset", required=True, choices=["vizwiz", "flickr8k", "flickr30k"])
     args = parser.parse_args()
     main(args.model, args.dataset)

@@ -7,10 +7,14 @@ def extract_encoder_heads(model: CaptionTransformer) -> list[list[torch.Tensor]]
     Expected output shape: list_of_layers[list_of_heads[attention_weight_shape]]
     """
 
-    encoder_heads = [
-        [head.cpu().detach() for head in block.self_attention.mha.attention_weights[0]]
-        for block in model.encoder_blocks
-    ]
+    if model.feature_extractor.hidden_state is None:
+        raise ValueError('Cannot extract encoder heads')
+    encoder_heads = []
+    for layer in model.feature_extractor.hidden_state:
+        layer_heads = []
+        for i in range(layer.shape[1]):
+            layer_heads.append(layer[0, i, :, :])
+        encoder_heads.append(layer_heads)
 
     return encoder_heads
 

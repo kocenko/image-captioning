@@ -16,15 +16,13 @@ class GenerateCaption(Callback):
     def __init__(
         self,
         image_paths: list[str],
-        image_embedding_size: int,
-        show_self_attention: bool,
+        image_embedding_size: int
     ):
         super().__init__()
         self.image_paths = image_paths
         self.image_embedding_size = image_embedding_size
-        self.show_self_attention = show_self_attention
 
-    def on_train_epoch_end(self, trainer, pl_module) -> None:
+    def on_train_epoch_start(self, trainer, pl_module) -> None:
         tensorboard = pl_module.logger.experiment
 
         for i, image_path in enumerate(self.image_paths):
@@ -70,15 +68,15 @@ class GenerateCaption(Callback):
             pl_module.model(dummy_image, dummy_caption)
 
             # Visualizing encoder layers
-            dummy_image = pl_module.model.image_transform.denormalize(dummy_image.squeeze(0))
-            if self.show_self_attention:
+            dummy_image = pl_module.model.image_transform.denormalize_image(dummy_image.squeeze(0))
+            if pl_module.model.feature_extractor.hidden_state is not None:
                 encoder_heads = extract_encoder_heads(pl_module.model)
                 self_att_fig = plot_self_attention(dummy_image, encoder_heads, 3, 4, self.image_embedding_size)
                 tensorboard.add_figure(f"{i}_self_attention", self_att_fig, trainer.current_epoch)
                 plt.close(self_att_fig)
 
             decoder_heads = extract_decoder_heads(pl_module.model)
-            aggregated_heads = aggregate_heads(decoder_heads, method="sum")
+            aggregated_heads = aggregate_heads(decoder_heads, method="mean")
             cross_att_fig = plot_cross_attention(
                 dummy_image,
                 raw_caption,

@@ -36,26 +36,11 @@ class CaptionTransformer(nn.Module):
         embeddings = config["embeddings"]
         dropout_rate = config["dropout_rate"]
         heads_num = config["heads_num"]
-        image_size = config["image_size"]
         decoder_layers = config["decoder_layers"]
         encoder_embeddings = config["encoder_embeddings"]
-        encoder_heads_num = config.get("encoder_heads_num", heads_num)
 
         self.image_transform = image_transform
         self.feature_extractor = feature_extractor
-        if not self.feature_extractor:
-            patch_size = config["patch_size"]
-            shift_pixels = config["shift_pixels"]
-            encoder_layers = config["encoder_layers"]
-            patches_num = (image_size // patch_size) ** 2
-            self.encoder_input = EncoderInput(image_size, shift_pixels, patch_size, encoder_embeddings)
-            self.encoder_blocks = nn.Sequential(
-                *[
-                    EncoderBlock(encoder_embeddings, dropout_rate, encoder_heads_num, patches_num)
-                    for _ in range(encoder_layers)
-                ]
-            )
-        self.encoder_frozen = False
 
         self.decoder_input = DecoderInput(vocabulary_size, max_caption_length, embeddings)
         self.decoder_blocks = nn.ModuleList(
@@ -78,59 +63,16 @@ class CaptionTransformer(nn.Module):
         padding_mask = self.get_padding_mask(caption)
         x = self.decoder_input(caption, padding_mask)
 
-        if self.encoder_frozen:
-            self.eval()
-
-        if not self.feature_extractor:
-            image = self.encoder_input(image)
-            image = self.encoder_blocks(image)
-        else:
-            image = self.feature_extractor.feed(image)
+        image = self.feature_extractor.feed(image)
+        if len(image.shape) > 3:
             image = torch.flatten(image, start_dim=2)
             image = image.permute(0, 2, 1)
-
-        if self.encoder_frozen:
-            self.train()
 
         for block in self.decoder_blocks:
             x = block(image, x, padding_mask)
 
         predictions = self.output_layer(x).contiguous()
         return predictions
-
-    def load_weights(self, path_to_weights: str) -> None:
-        with open("configs/custom_encoder_weights_names.txt", "r") as f:
-            custom_names = f.read()
-            custom_names = custom_names.splitlines()
-
-        with open("configs/vit_encoder_weights_names.txt", "r") as f:
-            vit_names = f.read()
-            vit_names = vit_names.splitlines()
-
-        mappings = {custom_name: vit_name for vit_name, custom_name in zip(vit_names, custom_names)}
-
-        with torch.no_grad():
-            vit_weights = torch.load(path_to_weights)
-
-            matching_params = [
-                (self_name, self_param) for self_name, self_param in self.named_parameters() if self_name in mappings
-            ]
-
-            for name, param in matching_params:
-                pretrained = vit_weights[mappings[name]]
-
-                # A hack used to remove 'cls' token from positional embedding
-                if name == "encoder_input.positional_embedding.weight":
-                    pretrained = pretrained[:, 1:, :].reshape(param.shape)
-
-                param.data.copy_(pretrained)
-
-    def freeze_encoder(self):
-        if not self.feature_extractor:
-            params_to_freeze = list(self.encoder_input.parameters()) + list(self.encoder_blocks.parameters())
-            for param in params_to_freeze:
-                param.requires_grad = False
-            self.encoder_frozen = True
 
     @staticmethod
     def find_top_best(

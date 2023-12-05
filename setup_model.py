@@ -19,20 +19,16 @@ def setup_model(
 
     hyperparameters = model_config["hyperparameters"]
     image_embedding_size = hyperparameters["encoder_sequence_size"]
-    pretrained_weights_path = model_config.get("pretrained_weights_path", False)
-    feature_extractor = model_config.get("feature_extractor", "patching")
+    feature_extractor = model_config["feature_extractor"]
     slice_layer_name = model_config.get("layer_name", None)
 
     # Setting up image transformations
-    extractor = None
-    if feature_extractor != "patching":
-        image_transform = ImageTransforms(hyperparameters["image_size"], feature_extractor)
-        extractor = FeatureExtractor(feature_extractor, image_transform)
+    image_transform = ImageTransforms(feature_extractor)
+    extractor = FeatureExtractor(feature_extractor, image_transform)
+    if feature_extractor != 'vit':
         extractor.slice_net(slice_layer_name, overwrite_model=True)
-        if torch.cuda.is_available():
-            extractor.model.cuda()
-    else:
-        image_transform = ImageTransforms(hyperparameters["image_size"])
+    if torch.cuda.is_available():
+        extractor.model.cuda()
 
     # Setting up DataModule responsible for managing input data
     lit_data_module = DataModule(
@@ -44,19 +40,11 @@ def setup_model(
         hyperparameters["batches"],
     )
 
-    if not extractor:
-        ct = CaptionTransformer(lit_data_module.tokenizer, image_transform, **hyperparameters)
-    else:
-        ct = CaptionTransformer(lit_data_module.tokenizer, image_transform, extractor, **hyperparameters)
-
-    if pretrained_weights_path and not extractor:
-        ct.load_weights(pretrained_weights_path)
-        # ct.freeze_encoder()
-
+    ct = CaptionTransformer(lit_data_module.tokenizer, image_transform, extractor, **hyperparameters)
     lit_model = ModelModule(f"{feature_extractor} - {dataset_name}", ct, hyperparameters["learning_rate"])
 
     early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
-    caption_gen = GenerateCaption(sample_images, image_embedding_size, feature_extractor == "patching")
+    caption_gen = GenerateCaption(sample_images, image_embedding_size)
     callbacks = [early_stopping, caption_gen]
 
     return lit_model, lit_data_module, hyperparameters, callbacks

@@ -38,14 +38,18 @@ class FeatureExtractor:
             )
 
         model_config = PRETRAINED_MODELS[model_name]
-        self.model = model_config["model"](weights=model_config["weights"])
+        self.model_name = model_name
+        self.model = model_config["model"]
         self.image_transform = image_transform
 
         for param in self.model.parameters():
             param.requires_grad = False
         self.model.eval()
 
-        self.last_layer_name = self.list_all_layers()[-1]
+        self.last_layer_name = None
+        if model_name != 'vit':
+            self.last_layer_name = self.list_all_layers()[-1]
+        self.hidden_state = None
 
     def list_all_layers(self) -> List[str]:
         """Lists all layers in the model
@@ -90,8 +94,10 @@ class FeatureExtractor:
             A tensor as an output of the model. The shape is analogous to the input.
         """
 
-        if self.model is None:
-            raise AttributeError("Cannot feed model if model is None")
+        if self.last_layer_name is None:
+            outputs = self.model(pixel_values=batch.squeeze(1), output_attentions=True)
+            self.hidden_state = [attention[:, :, 1:, 1:] for attention in outputs.attentions]
+            return outputs.last_hidden_state[:, 1:, :]
         return self.model(batch)[self.last_layer_name].to(dtype=torch.float)
 
     def save_feature_maps(self, path_to_image: str, path_to_folder: str, max_figs: int = 20) -> None:
