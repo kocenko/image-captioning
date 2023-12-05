@@ -10,7 +10,7 @@ import networkx as nx
 from model.transformer import CandidateGraph, CandidateNode
 from evaluation.beam_search_util import unravel_graph
 
-CMAP_COLOR = "Greens"
+CMAP_COLOR = "inferno"
 
 
 def plot_numpy_logs(name: str, folder: str = "../numpy_logs", batch_num: int = 0) -> None:
@@ -234,7 +234,7 @@ def plot_self_attention(
             attention = attention_weights[layer_id][head_id][attend_patch].reshape(patches_per_axis, patches_per_axis)
             attention = attention.detach().cpu().numpy()
             attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
-            ax.imshow(attention, alpha=0.4, cmap=CMAP_COLOR, interpolation="bilinear")
+            ax.imshow(attention, alpha=0.6, cmap=CMAP_COLOR, interpolation="bilinear")
     fig.tight_layout()
     if show:
         plt.show()
@@ -273,7 +273,7 @@ def plot_cross_attention(
                 attention = attention_weights[token_i].reshape(patches_per_axis, patches_per_axis)
                 attention = attention.detach().cpu().numpy()
                 attention = np.repeat(np.repeat(attention, patch_size, axis=0), patch_size, axis=1)
-                ax.imshow(attention, alpha=0.4, cmap=CMAP_COLOR, interpolation="bilinear")
+                ax.imshow(attention, alpha=0.6, cmap=CMAP_COLOR, interpolation="bilinear")
             else:
                 ax.axis("off")
     fig.tight_layout()
