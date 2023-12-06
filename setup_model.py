@@ -43,7 +43,7 @@ def setup_model(
     ct = CaptionTransformer(lit_data_module.tokenizer, image_transform, extractor, **hyperparameters)
     lit_model = ModelModule(f"{feature_extractor} - {dataset_name}", ct, hyperparameters["learning_rate"])
 
-    early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
+    early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=25)
     caption_gen = GenerateCaption(sample_images, image_embedding_size)
     callbacks = [early_stopping, caption_gen]
 
